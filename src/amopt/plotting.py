@@ -115,7 +115,7 @@ def annotate(ax, x, y, text, dx=6, dy=6, **kw):
     )
 
 
-def reference_slope(ax, x, y, slope, label, color=INK_MUTED):
+def reference_slope(ax, x, y, slope, label, color=INK_MUTED, offset=2.0):
     """Draw a dashed guide line of a given log-log slope through ``(x, y)``.
 
     Used on convergence plots to show the theoretical rate against which the
@@ -124,7 +124,9 @@ def reference_slope(ax, x, y, slope, label, color=INK_MUTED):
     import numpy as np
 
     xs = np.asarray(ax.get_xlim(), dtype=float)
-    ys = y * (xs / x) ** slope
+    # Lift the guide clear of the data so neither the line nor its label lands on
+    # a marker; only the slope is being communicated, not the intercept.
+    ys = offset * y * (xs / x) ** slope
     ax.plot(xs, ys, ls=(0, (4, 3)), lw=1.2, color=color, zorder=1)
     ax.set_xlim(*xs)
     # Label at the geometric midpoint, offset off the line, so it never lands on
@@ -132,7 +134,7 @@ def reference_slope(ax, x, y, slope, label, color=INK_MUTED):
     xm = float(np.sqrt(xs[0] * xs[1]))
     ax.annotate(
         label,
-        xy=(xm, y * (xm / x) ** slope),
+        xy=(xm, offset * y * (xm / x) ** slope),
         xytext=(0, 10),
         textcoords="offset points",
         ha="center",

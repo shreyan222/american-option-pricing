@@ -2,7 +2,7 @@
 
 Persistent state for this repository. Update after **every** milestone.
 
-**Current position:** Milestone 2 complete. Next: Milestone 3 (Crank–Nicolson + PSOR).
+**Current position:** Milestone 3 complete. Next: Milestone 4 (Longstaff–Schwartz).
 
 ---
 
@@ -96,4 +96,57 @@ See `RESULTS.md` §2.
   perpetual value (lattice error, now quantified and reported).
 
 ### Next
-Milestone 3: implement `src/amopt/crank_nicolson.py` per `docs/02`.
+Superseded — see Milestone 3 below.
+
+---
+
+## Milestone 3 — Crank–Nicolson + PSOR ✅
+
+### Completed
+- `src/amopt/crank_nicolson.py`: uniform price grid with the strike pinned to a
+  node, θ-scheme time stepping with Rannacher start-up, the tridiagonal operator
+  with assembly-time identity assertions, three LCP solvers (vectorised red–black
+  PSOR, reference lexicographic PSOR, exact Brennan–Schwartz), configurable
+  `omega`/`tol`/`max_iter`, selective and full upwinding, and exercise-boundary
+  extraction with a smooth-pasting sub-grid refinement.
+- `tests/test_crank_nicolson.py` — 74 tests. Total suite: 164 passing.
+- `experiments/m3_crank_nicolson.py` — six result tables, four figures.
+
+### Important decisions
+- **Red–black ordering for PSOR.** A tridiagonal matrix is consistently ordered
+  in Young's sense, so red–black SOR has the same spectral radius and the same
+  optimal `ω` as the lexicographic sweep — but each half sweep is one vectorised
+  NumPy expression. Measured 19× faster at `M = 400`, identical output.
+- **Brennan–Schwartz kept as an exact cross-check**, not as the production path.
+  PSOR is what the brief asks for; having a tolerance-free solver to compare
+  against is what makes the PSOR result trustworthy.
+- **Selective, not global, upwinding.** Measured: global upwinding is first order
+  and costs `1.16 × 10⁻²`; selective upwinding costs `< 10⁻⁸`.
+- **The exercise set is read from the projection, not from a threshold on
+  `v − g`.** See `RESULTS.md` §3.7 — the threshold version was wrong at `r = 0`.
+- **Convergence orders are measured by self-convergence per axis.** Comparing
+  against an external benchmark while refining one axis measures the other
+  axis's error floor. See `RESULTS.md` §3.2.
+
+### Numerical results
+See `RESULTS.md` §3.
+
+### Known limitations
+- **Temporal order is `1.26`, not `2`.** Inherent to applying Crank–Nicolson to a
+  free-boundary problem, not a bug — confirmed by the fully implicit scheme
+  measuring `1.01` on the same setup.
+- PSOR iteration counts grow with grid size (`18.7` sweeps/step at `M = N = 2000`
+  in the base case, `159` in the `high_vol` regime), because SOR's spectral
+  radius approaches 1 under refinement. A fixed `ω` is therefore not optimal
+  across the sweep; Milestone 6 quantifies the cost.
+- At `r = 0` the boundary is only resolvable to floating-point noise
+  (`S*(0) = 0.6` on a strike of 100), since the American and European values
+  coincide to machine precision deep in the money.
+
+### Unresolved
+- None. Four issues found during Milestone 3 (grid-nudge bound, Brennan–Schwartz
+  test premise, global-vs-selective upwinding, threshold-based boundary
+  extraction) were diagnosed and fixed.
+
+### Next
+Milestone 4: `src/amopt/lsm.py` — Longstaff–Schwartz least-squares Monte Carlo.

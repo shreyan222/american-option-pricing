@@ -8,7 +8,7 @@ cross-check.
 Every algorithm here is implemented from scratch. No option-pricing library is
 used, and every number in this README comes from an experiment in this repository.
 
-> **Status:** Milestone 2 of 8 complete. See [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+> **Status:** Milestone 3 of 8 complete. See [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ## Setup
 
@@ -23,6 +23,7 @@ pytest -q
 ```bash
 python experiments/m1_european_baseline.py
 python experiments/m2_analytic_anchors.py
+python experiments/m3_crank_nicolson.py   # ~4 min
 ```
 
 Each script writes CSVs to `results/` and figures to `figures/`, and prints a
@@ -35,13 +36,28 @@ Base contract `S₀ = K = 100, T = 1, r = 5%, σ = 20%, q = 0`:
 | Method | American put | European put |
 |---|---|---|
 | Black–Scholes (closed form) | — | `5.57352602` |
-| CRR lattice, `N = 12800` | `6.09031197` | `5.57336980` |
+| CRR lattice, `N = 40,000` | `6.09035196` | — |
+| CN-PSOR, `M = N = 3200` | `6.09030490` | — |
 
-The CRR European price converges at a measured log–log slope of `−0.990`
-(first order, as expected), and satisfies put–call parity on the lattice to
-`3.15 × 10⁻¹¹`.
+Two solvers sharing no code agree to `4.7 × 10⁻⁵` in the base case, and to
+`2.5 × 10⁻⁴` or better across all ten parameter regimes.
 
-![CRR convergence](figures/m1_binomial_convergence.png)
+**Measured convergence orders** (each axis refined against a reference on the
+same grid in the other axis, so the other axis's error cancels):
+
+| | order |
+|---|---|
+| CRR lattice, steps | `1.00` |
+| CN, space `ΔS` | `2.11` |
+| CN, time `Δτ` (American) | `1.26` |
+| CN, time `Δτ` (fully implicit) | `1.01` |
+
+Crank–Nicolson is formally second order in time, but the American free boundary
+is only located to `O(Δτ)` — so the *measured* temporal order for the American
+put is `1.26`, not `2`.
+
+![CN convergence](figures/m3_cn_convergence.png)
+![Value and boundary](figures/m3_value_and_boundary.png)
 
 ## Mathematical background
 
