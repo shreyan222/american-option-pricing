@@ -102,6 +102,7 @@ def crr(
     exercise: str = "american",
     greeks: bool = False,
     boundary: bool = False,
+    bermudan_dates: int | None = None,
 ) -> BinomialResult:
     r"""Price a vanilla option on a CRR lattice with ``N`` time steps.
 
@@ -113,6 +114,14 @@ def crr(
         Extract delta/gamma/theta from the lattice.  Because :math:`ud = 1`,
         the step-2 nodes contain :math:`S_0` itself, giving a centred
         second difference at no extra cost.
+    bermudan_dates : int, optional
+        If given, restrict exercise to ``bermudan_dates`` equally spaced dates
+        (plus maturity) instead of every step.  ``N`` must be a multiple of
+        ``bermudan_dates``.  This exists to provide the *exact* target that
+        Longstaff-Schwartz with the same number of exercise dates is estimating,
+        which separates the Bermudan exercise-date bias from the regression
+        error -- see `RESULTS.md` §4.
+
     boundary : bool
         Record, for each time step, the largest asset price at which immediate
         exercise is optimal (a put) -- a discrete estimate of :math:`S^*(t)`.
@@ -141,6 +150,12 @@ def crr(
         return BinomialResult(price=float(_payoff(np.asarray(S0, float), K, kind)), N=N)
     if exercise not in ("european", "american"):
         raise ValueError(f"exercise must be 'european' or 'american', got {exercise!r}")
+    if bermudan_dates is not None:
+        if exercise != "american":
+            raise ValueError("bermudan_dates only applies to exercise='american'")
+        if bermudan_dates < 1 or N % bermudan_dates != 0:
+            raise ValueError(f"N={N} must be a positive multiple of bermudan_dates={bermudan_dates}")
+        stride = N // bermudan_dates
 
     dt = T / N
     if sigma <= 0.0:
@@ -174,7 +189,7 @@ def crr(
         if exercise == "american" or boundary:
             S_i = S0 * np.exp((2 * np.arange(i + 1) - i) * vol_step)
             intrinsic = _payoff(S_i, K, kind)
-        if exercise == "american":
+        if exercise == "american" and (bermudan_dates is None or i % stride == 0):
             exercise_now = intrinsic > V
             V = np.where(exercise_now, intrinsic, V)
             if boundary:

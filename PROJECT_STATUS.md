@@ -2,7 +2,7 @@
 
 Persistent state for this repository. Update after **every** milestone.
 
-**Current position:** Milestone 3 complete. Next: Milestone 4 (Longstaff–Schwartz).
+**Current position:** Milestone 4 complete. Next: Milestone 5 (variance reduction).
 
 ---
 
@@ -149,4 +149,57 @@ See `RESULTS.md` §3.
   extraction) were diagnosed and fixed.
 
 ### Next
-Milestone 4: `src/amopt/lsm.py` — Longstaff–Schwartz least-squares Monte Carlo.
+Superseded — see Milestone 4 below.
+
+---
+
+## Milestone 4 — Longstaff–Schwartz ✅
+
+### Completed
+- `src/amopt/lsm.py`: exact-in-distribution GBM simulation (no Euler error),
+  three configurable regression bases (monomial, weighted Laguerre, Chebyshev),
+  in-the-money path filtering, backward-induction policy fitting, forward policy
+  evaluation, in-sample and out-of-sample estimators, and pair-aware standard
+  errors for antithetic sampling.
+- `bermudan_dates` added to `amopt.binomial.crr` — the exact `n`-date Bermudan
+  value, which is the benchmark LSM should actually be measured against.
+- `tests/test_lsm.py` — 32 tests. Total suite: 196 passing.
+- `experiments/m4_longstaff_schwartz.py` — five result tables, three figures.
+
+### Important decisions
+- **Benchmark against the exact Bermudan value, not the American value.** With
+  50 dates the exercise-date bias (`+0.0117`) is the same size as the whole
+  regression error (`−0.0101`) and they nearly cancel. Reporting only the
+  American deviation would have shown `−0.0017` and hidden both.
+- **Both estimators are reported.** In-sample is the classic Longstaff–Schwartz
+  and is biased high; out-of-sample fits the policy on one sample and values it
+  on an independent one, and is a valid lower bound. Together they bracket.
+- **Antithetic standard errors are computed over pair means**, not over paths.
+  The pair is the unit of independence; treating `2n` dependent paths as `2n`
+  observations is the standard way to report a spuriously tight interval.
+- **Spurious NumPy warnings are suppressed narrowly, not globally.** NumPy 2.0.2's
+  BLAS `matmul` raises FP flags from SIMD tail lanes on finite inputs; verified
+  against `einsum` (8.5e-14) and an explicit row sum (bitwise identical). The
+  suppression is wrapped in an explicit finiteness check so a genuine
+  ill-conditioning failure still raises.
+
+### Numerical results
+See `RESULTS.md` §4.
+
+### Known limitations
+- LSM stores every path at every exercise date, so memory is `O(n_paths × n_dates)`.
+  200,000 × 50 doubles is ~80 MB; a million paths at 200 dates would not fit
+  comfortably. This caps the path counts used in Milestone 6.
+- The out-of-sample estimator costs 2× the simulation budget.
+- Only the *lower* bound (a fixed policy) is implemented. A dual/upper bound
+  (Andersen–Broadie) is not, so LSM results are one-sided.
+
+### Unresolved
+- None. Two issues found during Milestone 4 (a wrong expected ratio in the
+  Bermudan-gap test — the date grid is not a pure doubling — and a null result
+  for the foresight bias at a single operating point) were fixed by correcting
+  the test and by redesigning the study as a sweep over paths and basis size.
+
+### Next
+Milestone 5: `src/amopt/variance_reduction.py` — antithetic variates and a
+European-put control variate.

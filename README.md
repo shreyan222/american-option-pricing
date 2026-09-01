@@ -8,7 +8,7 @@ cross-check.
 Every algorithm here is implemented from scratch. No option-pricing library is
 used, and every number in this README comes from an experiment in this repository.
 
-> **Status:** Milestone 3 of 8 complete. See [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+> **Status:** Milestone 4 of 8 complete. See [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ## Setup
 
@@ -23,7 +23,8 @@ pytest -q
 ```bash
 python experiments/m1_european_baseline.py
 python experiments/m2_analytic_anchors.py
-python experiments/m3_crank_nicolson.py   # ~4 min
+python experiments/m3_crank_nicolson.py    # ~4 min
+python experiments/m4_longstaff_schwartz.py # ~2 min
 ```
 
 Each script writes CSVs to `results/` and figures to `figures/`, and prints a
@@ -58,6 +59,23 @@ put is `1.26`, not `2`.
 
 ![CN convergence](figures/m3_cn_convergence.png)
 ![Value and boundary](figures/m3_value_and_boundary.png)
+
+### Monte Carlo: benchmark against the Bermudan value, not the American value
+
+LSM with `n` exercise dates prices a *Bermudan* option. Comparing it to the
+continuous-exercise American value conflates two errors of opposite sign. At 50
+dates the exercise-date bias is `+0.011730` and the regression-plus-sampling
+error is `−0.010058` — they nearly cancel, and reporting only the American
+deviation would have shown a misleadingly small `−0.0017`.
+
+![LSM bias decomposition](figures/m4_bias_decomposition.png)
+
+Fitting the exercise policy on the same paths you value it on is a real,
+measurable data leak. At 500 paths with an 11-function basis the in-sample
+estimate is **9.0% above** the true Bermudan value — higher even than the
+American value it is trying to approximate:
+
+![In-sample vs out-of-sample](figures/m4_in_vs_out_of_sample.png)
 
 ## Mathematical background
 

@@ -190,3 +190,140 @@ strike of 100, and the correct answer to the precision available.
 
 Figures: `figures/m3_cn_convergence.png`, `figures/m3_psor_efficiency.png`,
 `figures/m3_rannacher.png`, `figures/m3_value_and_boundary.png`.
+
+---
+
+## 4. Longstaff–Schwartz least-squares Monte Carlo
+
+Source: `experiments/m4_longstaff_schwartz.py` → `results/m4_*.csv`.
+
+### 4.1 Benchmarking against the *right* target
+
+LSM with `n` exercise dates estimates the `n`-date **Bermudan** value, not the
+continuous-exercise American value. The lattice computes the Bermudan value
+exactly (`crr(..., bermudan_dates=n)`), which lets the deviation be split:
+
+```
+American − LSM  =  (American − Bermudan_n)  +  (Bermudan_n − LSM)
+                    exercise-date bias         regression + sampling error
+```
+
+Base case, 200,000 paths, 50 exercise dates, cubic polynomial basis, seed `20240901`:
+
+| | value |
+|---|---|
+| American, CRR `N = 40,000` | `6.090352` |
+| American, CN-PSOR `M = N = 3200` | `6.090305` |
+| **Bermudan, 50 dates, exact lattice** | **`6.078622`** |
+| LSM in-sample | `6.069081 ± 0.016027`, 95% CI `[6.037669, 6.100493]` |
+| LSM out-of-sample | `6.088680 ± 0.016028`, 95% CI `[6.057266, 6.120094]` |
+
+Deviation of the out-of-sample estimate from the exact Bermudan value:
+`+0.010058` (`+0.63` standard errors) — inside the confidence interval.
+Deviation from the American value: `−0.001672`.
+
+**At 50 exercise dates the exercise-date bias (`+0.011730`) is the same size as
+the entire regression-plus-sampling error (`−0.010058`).** Quoting only
+"deviation from the American benchmark" would have reported `−0.0017` and hidden
+two errors of opposite sign that nearly cancel.
+
+### 4.2 The exercise-date bias is `O(1/n)`
+
+`results/m4_bias_decomposition.csv`. Gap from the exact `n`-date Bermudan value
+to the American value:
+
+| dates `n` | Bermudan | gap to American |
+|---|---|---|
+| 5 | `5.981142` | `0.109210` |
+| 10 | `6.033621` | `0.056731` |
+| 25 | `6.067113` | `0.023239` |
+| 50 | `6.078622` | `0.011730` |
+| 100 | `6.084454` | `0.005898` |
+| 200 | `6.087399` | `0.002953` |
+
+The gap shrinks by exactly the factor by which the date count grows (fitted
+log–log slope `−1`, asserted in
+`tests/test_lsm.py::test_bermudan_value_increases_with_exercise_dates_towards_the_american`).
+
+### 4.3 Look-ahead bias: measured, not asserted
+
+The classic estimator fits the exercise policy on the same paths it values, so
+the exercise decisions carry hindsight. Fitting on one sample and valuing on an
+**independent** sample removes it. Sweeping paths and basis size (25 exercise
+dates, polynomial basis, exact Bermudan target `6.067113`, 40–400 independent
+repetitions per cell):
+
+| paths | degree | in-sample | out-of-sample | foresight bias (in − out) |
+|---|---|---|---|---|
+| 500 | 3 | `6.32929` | `5.95746` | `+0.37183 ± 0.02330` |
+| 500 | 10 | `6.61295` | `5.85629` | **`+0.75666 ± 0.02324`** |
+| 2,000 | 3 | `6.13379` | `6.00775` | `+0.12604 ± 0.01250` |
+| 2,000 | 10 | `6.22896` | `5.97274` | `+0.25622 ± 0.01260` |
+| 10,000 | 3 | `6.08147` | `6.06079` | `+0.02069 ± 0.00825` |
+| 10,000 | 10 | `6.10236` | `6.04970` | `+0.05266 ± 0.00780` |
+| 50,000 | 3 | `6.06814` | `6.06187` | `+0.00626 ± 0.00447` |
+| 50,000 | 10 | `6.07460` | `6.06169` | `+0.01291 ± 0.00437` |
+| 200,000 | 3 | `6.06342` | `6.06080` | `+0.00262 ± 0.00397` |
+| 200,000 | 10 | `6.06736` | `6.06313` | `+0.00423 ± 0.00386` |
+
+Three findings:
+
+1. **The bias is real and large when the sample is small relative to the basis.**
+   At 500 paths with an 11-function basis the in-sample estimate is `6.613`, i.e.
+   **9.0% above** the true Bermudan value — and above the *American* value
+   `6.0904`, so it is not even a valid upper-bound-free estimate.
+2. **The two estimators bracket the truth.** In-sample is above the exact
+   Bermudan value at every path count; out-of-sample is below it at every path
+   count. Out-of-sample is a valid lower bound because it evaluates a fixed
+   policy; in-sample is biased high by the hindsight.
+3. **The bias decays roughly like `1/n_paths` and grows with the number of basis
+   functions**, consistent with an overfitting bias of order (parameters/paths).
+   It is statistically undetectable at 200,000 paths with a cubic basis
+   (`+0.0026 ± 0.0040`), which is the operating point used elsewhere in this
+   repository.
+
+**The reported standard errors are honest.** Comparing each run's self-reported
+standard error with the realised standard deviation across repetitions, the ratio
+lies in `[0.98, 1.18]` across all ten cells for both estimators. The in-sample
+problem is bias, not an understated error bar.
+
+### 4.4 In-the-money path filtering is not a refinement — it is essential
+
+`results/m4_itm_filter.csv`. Deviation from the exact 50-date Bermudan value,
+200,000 paths, out-of-sample:
+
+| degree | regress on ITM paths only | regress on all paths |
+|---|---|---|
+| 2 | `−0.014296` | `−0.338926` |
+| 3 | `+0.010058` | `−0.155557` |
+| 4 | `+0.010321` | `−0.160226` |
+| 6 | `+0.008582` | `−0.069535` |
+
+Standard errors are `≈ 0.016` throughout, so the all-paths deviations are
+`4–21` standard errors from the benchmark while the ITM-only deviations are
+under one. Regressing on all paths forces the polynomial to fit the flat
+out-of-the-money region where the exercise decision is never live, and it buys
+that fit by degrading the continuation estimate exactly where the decision
+matters. **Filtering to in-the-money paths is worth up to `0.34` in price — 33×
+the sampling error.**
+
+### 4.5 Basis family and degree
+
+`results/m4_basis_study.csv`. Accuracy saturates at degree 3: beyond it every
+basis sits within one standard error (`≈ 0.016`) of the Bermudan benchmark, and
+the best cell (`poly`, degree 6, `|dev| = 8.58 × 10⁻³`) is not distinguishable
+from the others. Conditioning does *not* saturate — condition number of the
+in-the-money design matrix at `t = T/2`, degree 10:
+
+| basis | condition number |
+|---|---|
+| Chebyshev | `6.2 × 10¹⁰` |
+| monomial (`poly`) | `4.7 × 10¹²` |
+| weighted Laguerre | `3.2 × 10¹⁶` |
+
+Laguerre at degree 10 is at the edge of double precision. The practical
+recommendation from these numbers is a **low-degree basis** — the accuracy is
+already there at degree 3 — and Chebyshev if a high degree is unavoidable.
+
+Figures: `figures/m4_bias_decomposition.png`,
+`figures/m4_in_vs_out_of_sample.png`, `figures/m4_basis_study.png`.
