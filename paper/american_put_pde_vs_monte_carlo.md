@@ -255,10 +255,11 @@ optimum drifts upward with refinement (`ω* = 1.1, 1.2, 1.3, 1.4` at
 
 **The cell-Péclet violation.** `a_i ≥ 0` requires `i ≥ (r−q)/σ²`, which is `1.25`
 in the base case, so exactly **one** row fails the M-matrix condition. Repairing
-only that row by upwinding restores the M-matrix property and changes the price
-by less than `10⁻⁸`. Upwinding *every* row — the obvious implementation — costs
+only that row by upwinding restores the M-matrix property and leaves the price
+bit-identical. Upwinding *every* row — the obvious implementation — costs
 `1.16 × 10⁻²`, an error `250×` larger than the central-difference grid error, and
-is first order. The solver therefore upwinds selectively.
+its measured order is `0.943`: first, not second. The solver therefore upwinds
+selectively.
 
 **Rannacher start-up.** Crank–Nicolson is A-stable but not L-stable, so the
 payoff kink rings. At `N = 25` two fully implicit start-up steps cut the total
@@ -377,15 +378,18 @@ paths against the exact Bermudan value `6.078622`:
 
 | method | 95% CI width | variance per path | VRF | work-normalised gain | paths for the naive accuracy |
 |---|---|---|---|---|---|
-| naive | `0.06283` | `51.3772` | `1.00` | `1.00` | `200,000` |
-| antithetic | `0.03744` | `18.2447` | `2.82` | `3.32` | `71,022` |
-| control variate | `0.04179` | `22.7259` | `2.26` | `2.22` | `88,467` |
-| antithetic + control | `0.03643` | `17.2774` | `2.97` | `3.01` | `67,257` |
+| naive | `0.06283` | `51.3772` | `1.00` | `1.0` | `200,000` |
+| antithetic | `0.03744` | `18.2447` | `2.82` | `3.1` | `71,022` |
+| control variate | `0.04179` | `22.7259` | `2.26` | `2.0` | `88,467` |
+| antithetic + control | `0.03643` | `17.2774` | `2.97` | `2.6` | `67,257` |
 
 Factors are computed **per path**, not per sampling unit: an antithetic unit
 consumes two paths, and the per-unit comparison would report double the true
-gain. The work-normalised gain multiplies by the runtime ratio; antithetic scores
-above its raw factor because it draws half as many normals.
+gain. The work-normalised gain multiplies by the runtime ratio: antithetic scores
+above its raw factor because it draws half as many normals, the control variate
+below its own because computing and regressing the control costs real time. The
+gains are the only timing-dependent numbers in this table and are quoted to two
+significant figures; everything else is deterministic.
 
 **The control variate's power is exactly `1/(1−ρ²)`.** Across all ten regimes the
 measured factor matches the theoretical value to two decimal places — `ρ = 0.463`
@@ -498,16 +502,18 @@ used and the reported runtime is that of one run.
 
 | method | error scaling | to `10⁻²` | to `10⁻³` | to `10⁻⁴` | best achieved |
 |---|---|---|---|---|---|
-| CRR lattice | `t^{−0.55}` | `0.015 s` | `0.015 s` | `0.234 s` | `9.4 × 10⁻⁶` at `11.8 s` |
-| CN + PSOR | `t^{−1.22}` | `0.078 s` | `0.197 s` | `1.740 s` | `2.0 × 10⁻⁵` at `9.8 s` |
-| LSM (antithetic + control) | floors | **never** | **never** | **never** | `1.4 × 10⁻²` at `0.42 s` |
+| CRR lattice | `t^{−0.55}` | `0.016 s` | `0.016 s` | `0.25 s` | `9.3 × 10⁻⁶` at `13 s` |
+| CN + PSOR | `t^{−1.22}` | `0.082 s` | `0.21 s` | `1.8 s` | `2.1 × 10⁻⁵` at `10 s` |
+| LSM (antithetic + control) | floors | **never** | **never** | **never** | `1.4 × 10⁻²` at `0.44 s` |
+
+All wall-clock figures are single-threaded, single-machine, single-run measurements. Re-running them moves the absolute times by 5–25%; the **ratios and the fitted power-law slopes are the stable quantities** and are reproducible to two decimal places. Timings are quoted to two significant figures for that reason.
 
 Three conclusions.
 
 **Monte Carlo is not competitive for this problem, by three orders of magnitude.**
 LSM never reaches `10⁻²` at any of the 17 configurations swept (5,000–200,000
 paths × 10–200 dates, plus the memory-ceiling runs), while the lattice reaches it
-in 15 milliseconds. The `O(N^{-1/2})` law is not the binding constraint; the
+in 16 milliseconds. The `O(N^{-1/2})` law is not the binding constraint; the
 policy bias is, and no amount of sampling addresses it. This is the expected
 answer for a one-dimensional problem — Monte Carlo earns its keep in dimension,
 not in precision — but it is worth having measured rather than assumed.
@@ -515,7 +521,7 @@ not in precision — but it is worth having measured rather than assumed.
 **The lattice beats the PDE solver throughout the tested range.** CRR's
 `t^{−0.55}` follows directly from `O(1/N)` accuracy at `O(N²)` cost. Crank–
 Nicolson's error falls faster with cost (`t^{−1.22}`), so the fitted power laws
-cross at `t ≈ 11 s`, `error ≈ 9.4 × 10⁻⁶` — right at the edge of the measured
+cross at `t ≈ 11 s`, `error ≈ 9.5 × 10⁻⁶` — right at the edge of the measured
 range, which is an extrapolation rather than an observed crossing.
 
 **What the PDE actually buys is not speed.** It returns the whole value surface,

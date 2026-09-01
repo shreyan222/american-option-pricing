@@ -162,8 +162,9 @@ themselves only first order. Both directions are in the CSV.
 
 ### 3.6 The cell-Péclet violation is real but harmless — when repaired selectively
 
-For the base case exactly **one** row (`i = 1`, threshold `(r−q)/σ² = 1.25`)
-violates the M-matrix condition under central differencing.
+`results/m3_upwind.csv`. For the base case exactly **one** row (`i = 1`,
+threshold `(r−q)/σ² = 1.25`) violates the M-matrix condition under central
+differencing.
 
 | Scheme | Price (`M = N = 1600`) | non-M-matrix rows |
 |---|---|---|
@@ -171,11 +172,12 @@ violates the M-matrix condition under central differencing.
 | Selective upwinding (violating rows only) | `6.09014363` | 0 |
 | Full upwinding (every row) | `6.10179234` | 0 |
 
-Selective upwinding restores the M-matrix property and changes the price by less
-than `10⁻⁸`. **Upwinding every row costs `1.16 × 10⁻²`** — a measured error 250×
-larger than the central-difference grid error — and is first order
-(`tests/test_crank_nicolson.py::test_full_upwinding_is_first_order`). This is why
-the solver upwinds selectively rather than globally.
+Selective upwinding restores the M-matrix property and leaves the price
+**bit-identical** to the central-difference value. **Upwinding every row costs
+`1.16 × 10⁻²`** — a measured error 250× larger than the central-difference grid
+error — and its measured convergence order over `M ∈ [200, 1600]` is `0.943`,
+i.e. first order rather than second. This is why the solver upwinds selectively
+rather than globally.
 
 ### 3.7 The exercise-region test must read the projection, not a threshold
 
@@ -345,15 +347,21 @@ differences in interval width are attributable to the technique alone.
 
 | method | price | SE | 95% CI width | variance per path | VRF | work-normalised gain | paths for the naive SE |
 |---|---|---|---|---|---|---|---|
-| naive | `6.08868` | `0.016028` | `0.06283` | `51.3772` | `1.00` | `1.00` | `200,000` |
-| antithetic | `6.08613` | `0.009551` | `0.03744` | `18.2447` | `2.82` | **`3.32`** | `71,022` |
-| control variate | `6.09755` | `0.010660` | `0.04179` | `22.7259` | `2.26` | `2.22` | `88,467` |
-| antithetic + control | `6.08255` | `0.009294` | `0.03643` | `17.2774` | **`2.97`** | `3.01` | `67,257` |
+| naive | `6.08868` | `0.016028` | `0.06283` | `51.3772` | `1.00` | `1.0` | `200,000` |
+| antithetic | `6.08613` | `0.009551` | `0.03744` | `18.2447` | `2.82` | `3.1` | `71,022` |
+| control variate | `6.09755` | `0.010660` | `0.04179` | `22.7259` | `2.26` | `2.0` | `88,467` |
+| antithetic + control | `6.08255` | `0.009294` | `0.03643` | `17.2774` | **`2.97`** | `2.6` | `67,257` |
 
 The variance-reduction factor is computed **per path**, not per sampling unit —
 an antithetic unit consumes two paths, and comparing per unit would double-count
-the gain. The work-normalised gain multiplies by the runtime ratio; antithetic
-sampling scores above its raw VRF because it draws half as many normals.
+the gain. The work-normalised gain multiplies by the runtime ratio: antithetic
+sampling scores *above* its raw VRF (`3.1` against `2.82`) because it draws half
+as many normals, while the control variate scores below its own (`2.0` against
+`2.26`) because computing and regressing the control costs real time.
+
+> **On timings.** All wall-clock figures are single-threaded, single-machine, single-run measurements. Re-running them moves the absolute times by 5–25%; the *ratios and the fitted power-law slopes are the stable quantities* and are reproducible to two decimal places. Timings are quoted to two significant figures for that reason.
+> The VRFs, standard errors and CI widths above are deterministic and reproduce
+> bit-identically.
 
 **Antithetic sampling reaches the naive method's accuracy on 71,022 paths
 instead of 200,000 — a 2.8× reduction in simulation budget.** Combining both
@@ -604,9 +612,11 @@ afterwards, so a low-degree basis is the right default.
 
 | method | error scaling | time to `10⁻³` | time to `10⁻⁴` | best achieved |
 |---|---|---|---|---|
-| CRR lattice | `t^{−0.55}` | `0.015 s` | `0.234 s` | `9.4 × 10⁻⁶` at `11.8 s` |
-| CN + PSOR | `t^{−1.22}` | `0.197 s` | `1.740 s` | `2.0 × 10⁻⁵` at `9.8 s` |
-| LSM (antithetic + control) | floors | **never** | **never** | `1.4 × 10⁻²` at `0.42 s` |
+| CRR lattice | `t^{−0.55}` | `0.016 s` | `0.25 s` | `9.3 × 10⁻⁶` at `13 s` |
+| CN + PSOR | `t^{−1.22}` | `0.21 s` | `1.8 s` | `2.1 × 10⁻⁵` at `10 s` |
+| LSM (antithetic + control) | floors | **never** | **never** | `1.4 × 10⁻²` at `0.44 s` |
+
+> **On timings.** All wall-clock figures are single-threaded, single-machine, single-run measurements. Re-running them moves the absolute times by 5–25%; the **ratios and the fitted power-law slopes are the stable quantities** and are reproducible to two decimal places. Timings are quoted to two significant figures for that reason.
 
 Three findings:
 
@@ -617,7 +627,7 @@ Three findings:
 2. **The lattice beats the PDE solver throughout the tested range.** CRR's
    `t^{−0.55}` follows directly from `O(1/N)` accuracy at `O(N²)` cost. CN's
    error falls faster with cost (`t^{−1.22}`), so the fitted power laws cross at
-   `t ≈ 11 s`, `error ≈ 9.4 × 10⁻⁶` — right at the edge of the measured range.
+   `t ≈ 11 s`, `error ≈ 9.5 × 10⁻⁶` — right at the edge of the measured range.
    For a single-asset vanilla American put, the lattice is the efficient choice
    at any accuracy a practitioner would ask for.
 3. **What the PDE buys is not speed.** It returns the whole value surface, the

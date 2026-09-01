@@ -23,6 +23,15 @@ estimator variance, stability, robustness — not a single price.
 - **No fabricated numbers.** Every figure in `README.md`, `RESULTS.md` and
   `paper/` must be traceable to a CSV in `results/` produced by a script in
   `experiments/`. If a number is not in `results/`, it does not go in the docs.
+  Two mechanisms enforce this, and both must pass:
+  - `pytest tests/test_documented_claims.py` — pins each headline number to a
+    named CSV column, to the digits as printed.
+  - `python experiments/audit_documents.py` — sweeps *every* quoted number in
+    the docs and reports any with no source. Exit code 1 if anything is
+    unsupported.
+- **Wall-clock numbers are quoted to two significant figures, with the caveat.**
+  Re-running moves absolute timings by 5–25%. Ratios and fitted power-law slopes
+  are stable and are what the conclusions rest on.
 - **Do not weaken a failing test to make it pass.** Diagnose it. If a test was
   genuinely wrong, fix the test and say why in the commit message.
 - **Do not delete inconvenient experiments.** Unexpected results get
@@ -54,6 +63,16 @@ RESULTS.md        experimentally verified numbers only
   figure.
 - Parameter regimes live in `amopt.config.REGIMES` so all experiments price the
   same contracts.
+
+## After changing an experiment
+
+1. Rerun the affected `experiments/mN_*.py`.
+2. Run `pytest -q` — `test_documented_claims.py` will fail if a documented
+   number moved.
+3. Update `RESULTS.md`, `README.md` and `paper/` to the new values.
+4. Run `python experiments/audit_documents.py` and confirm it exits 0.
+5. Regenerate any figure whose *plotting code* changed, not just its data —
+   the final audit found a figure that had been stale for four milestones.
 
 ## Environment
 

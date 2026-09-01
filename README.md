@@ -121,9 +121,12 @@ two methods that share no code and quoting their disagreement as the uncertainty
 
 | method | error scaling | time to `10⁻³` | time to `10⁻⁴` | best achieved |
 |---|---|---|---|---|
-| CRR lattice | `t^{−0.55}` | `0.015 s` | `0.234 s` | `9.4 × 10⁻⁶` |
-| CN + PSOR | `t^{−1.22}` | `0.197 s` | `1.740 s` | `2.0 × 10⁻⁵` |
+| CRR lattice | `t^{−0.55}` | `0.016 s` | `0.25 s` | `9.3 × 10⁻⁶` |
+| CN + PSOR | `t^{−1.22}` | `0.21 s` | `1.8 s` | `2.1 × 10⁻⁵` |
 | LSM (antithetic + control) | floors at the policy bias | **never** | **never** | `1.4 × 10⁻²` |
+
+Timings are single-threaded, single-machine and vary by 5–25% between runs; the
+fitted slopes and the ratios reproduce to two decimal places.
 
 ![Error vs runtime](figures/m6_error_vs_runtime.png)
 

@@ -161,6 +161,33 @@ def _tv_gamma(res, K, window=15.0) -> float:
     return float(np.sum(np.abs(np.diff(gamma[mask]))))
 
 
+def upwind_study(crr_ref: float) -> pd.DataFrame:
+    """Central differences vs selective vs full upwinding of the convection term.
+
+    Exactly one row (``i=1``, threshold ``(r-q)/sigma^2 = 1.25``) violates the
+    cell-Peclet condition in the base case.  Repairing only that row should be
+    free; repairing every row should be first order and measurably worse.  Both
+    claims are measured here rather than asserted.
+    """
+    rows = []
+    for mode, label in ((False, "central"), (True, "selective"), ("full", "full")):
+        for M in (200, 400, 800, 1600):
+            res = solve_pde(P.S0, P.K, P.T, P.r, P.sigma, P.q, "put", "american",
+                            M=M, N=M, upwind=mode)
+            rows.append({"scheme": label, "M": M, "N": M, "price": res.price,
+                         "abs_error_vs_crr": abs(res.price - crr_ref),
+                         "n_peclet_violations": res.n_peclet_violations,
+                         "n_non_mmatrix_rows": res.n_non_mmatrix_rows,
+                         "runtime_s": res.runtime_s})
+    df = pd.DataFrame(rows)
+    pv = df.pivot_table(index="M", columns="scheme", values="price")
+    df = df.merge((pv["selective"] - pv["central"]).abs().rename("selective_minus_central")
+                  .reset_index(), on="M", how="left")
+    df = df.merge((pv["full"] - pv["central"]).abs().rename("full_minus_central")
+                  .reset_index(), on="M", how="left")
+    return df
+
+
 def rannacher_study() -> pd.DataFrame:
     exact_eu = float(bs_put(P.S0, P.K, P.T, P.r, P.sigma, P.q))
     rows = []
@@ -210,6 +237,7 @@ def main() -> None:
     agree = solver_agreement(); agree.to_csv(RESULTS / "m3_solver_agreement.csv", index=False)
     om = omega_study(); om.to_csv(RESULTS / "m3_omega_study.csv", index=False)
     ran = rannacher_study(); ran.to_csv(RESULTS / "m3_rannacher.csv", index=False)
+    upw = upwind_study(crr_ref); upw.to_csv(RESULTS / "m3_upwind.csv", index=False)
     reg = regime_table(); reg.to_csv(RESULTS / "m3_regime_table.csv", index=False)
 
     eu_slope = _slope(conv["M"], conv["european_abs_error"])
@@ -368,6 +396,17 @@ def main() -> None:
     print(f"best omega by M                   : {bestrow}")
     print(f"Rannacher at N=25: TV(gamma) {r0['tv_gamma_near_strike']:.5f} -> "
           f"{r2['tv_gamma_near_strike']:.5f}, error {r0['abs_error']:.2e} -> {r2['abs_error']:.2e}")
+    u = upw[upw["M"] == 1600].set_index("scheme")
+    print(f"upwinding at M=N=1600: central {u.loc['central','price']:.8f}, "
+          f"selective {u.loc['selective','price']:.8f} "
+          f"(delta {u.loc['M' if False else 'selective','price']-u.loc['central','price']:+.2e}), "
+          f"full {u.loc['full','price']:.8f} "
+          f"(delta {u.loc['full','price']-u.loc['central','price']:+.2e})")
+    fu = upw[upw["scheme"] == "full"].sort_values("M")
+    print(f"   full-upwinding order: "
+          f"{-_slope(fu['M'], fu['abs_error_vs_crr']):.3f}; non-M-matrix rows "
+          f"central {int(u.loc['central','n_non_mmatrix_rows'])} -> selective "
+          f"{int(u.loc['selective','n_non_mmatrix_rows'])}")
     print(f"max |CN - CRR| across 10 regimes  : {reg['abs_diff_cn_vs_crr'].max():.2e} "
           f"({reg.loc[reg['abs_diff_cn_vs_crr'].idxmax(), 'regime']})")
     print(f"S*(0) at M=N=3200                 : {S_star:.5f} "

@@ -107,6 +107,22 @@ def test_price_is_invariant_to_omega():
     assert len(d) == 4
 
 
+def test_upwinding_costs_are_measured():
+    d = load("m3_upwind.csv")
+    at = d[d["M"] == 1600].set_index("scheme")
+    assert f"{at.loc['central', 'price']:.8f}" == "6.09014363"
+    assert f"{at.loc['full', 'price']:.8f}" == "6.10179234"
+    assert at.loc["selective", "price"] == at.loc["central", "price"], "must be bit-identical"
+    assert f"{abs(at.loc['full', 'price'] - at.loc['central', 'price']):.2e}" == "1.16e-02"
+    assert int(at.loc["central", "n_non_mmatrix_rows"]) == 1
+    assert int(at.loc["selective", "n_non_mmatrix_rows"]) == 0
+    full = d[d["scheme"] == "full"].sort_values("M")
+    order = -np.polyfit(np.log(full["M"]), np.log(full["abs_error_vs_crr"]), 1)[0]
+    assert f"{order:.3f}" == "0.943"
+    assert quoted("6.10179234", "RESULTS.md")
+    assert quoted("0.943", "RESULTS.md", "paper")
+
+
 def test_rannacher_effect():
     d = load("m3_rannacher.csv")
     r0 = d[(d["N"] == 25) & (d["rannacher_steps"] == 0)].iloc[0]
@@ -287,6 +303,41 @@ def test_lsm_rmse_floor():
     assert f"{lsm['error'].min():.2e}" == "1.44e-02"
     assert lsm["error"].min() > 1e-2, "LSM must never reach 1e-2, as documented"
     assert quoted("1.44 × 10⁻²", "RESULTS.md", "paper")
+
+
+def test_timing_claims_are_within_run_to_run_variation():
+    r"""Wall-clock claims get a tolerance band, not an equality check.
+
+    Re-running the experiments moves absolute timings by 5-25% depending on
+    machine load, so quoting them to three significant figures is not
+    reproducible and asserting them exactly would make this suite flaky.  The
+    documents quote two significant figures and say so; this test checks the
+    quoted values are within 40% of the current CSV and that the *ordering* --
+    the actual claim -- holds.
+    """
+    fr = load("m6_frontier.csv")
+    quoted_times = {
+        ("cn_psor", 1e-2): 0.082, ("cn_psor", 1e-3): 0.21, ("cn_psor", 1e-4): 1.8,
+        ("crr", 1e-2): 0.016, ("crr", 1e-3): 0.016, ("crr", 1e-4): 0.25,
+    }
+    for (method, target), claimed in quoted_times.items():
+        d = fr[(fr["method"] == method) & (fr["error"] <= target)]
+        assert len(d), (method, target)
+        actual = d["runtime_s"].min()
+        assert 0.6 * actual <= claimed <= 1.4 * actual, (method, target, claimed, actual)
+    # The claim that survives re-timing: the lattice is faster at every accuracy.
+    for target in (1e-2, 1e-3, 1e-4):
+        cn = fr[(fr["method"] == "cn_psor") & (fr["error"] <= target)]["runtime_s"].min()
+        crr = fr[(fr["method"] == "crr") & (fr["error"] <= target)]["runtime_s"].min()
+        assert crr < cn, target
+
+    h = load("m5_headline.csv").set_index("method")
+    for m, claimed in (("antithetic", 3.1), ("control", 2.0), ("antithetic_control", 2.6)):
+        actual = h.loc[m, "work_normalised_gain"]
+        assert 0.75 * actual <= claimed <= 1.25 * actual, (m, claimed, actual)
+    # The orderings that are the actual claims:
+    assert h.loc["antithetic", "work_normalised_gain"] > h.loc["antithetic", "variance_reduction_factor"]
+    assert h.loc["control", "work_normalised_gain"] < h.loc["control", "variance_reduction_factor"]
 
 
 def test_error_vs_runtime_power_laws():

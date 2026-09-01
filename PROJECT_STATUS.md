@@ -398,3 +398,62 @@ Monte Carlo's real advantage — dimension — invisible.
 
 ### Unresolved
 - None.
+
+
+---
+
+## Final audit ✅
+
+Performed in a **clean virtual environment** built from `requirements.txt`
+(`numpy 2.0.2`, `scipy 1.13.1`, `pandas 2.3.3`, `matplotlib 3.9.4`,
+`pytest 8.4.2` on CPython 3.9.6).
+
+### What was done
+1. Fresh `venv`, dependencies reinstalled from `requirements.txt`.
+2. Full test suite: **273 passing**.
+3. All seven experiment scripts rerun end to end.
+4. Every output diffed against a pre-audit snapshot.
+5. Documents swept for unsupported numeric claims.
+6. Secret and PII scan over all 94 tracked files.
+7. Pushed to `origin/main`.
+
+### Reproducibility
+- **Every non-timing value in all 40 result CSVs reproduces bit-identically.**
+  Monte Carlo work is seeded; the PDE and lattice are deterministic.
+- **16 of 19 figures reproduce byte-identically.** The three that differ are
+  `m5_efficiency.png` and `m5_error_vs_paths.png` (both plot wall-clock time) and
+  `m1_binomial_convergence.png`.
+
+### What the audit caught
+1. **A stale committed figure.** `m1_binomial_convergence.png` had been generated
+   before the Milestone 3 change that offsets the reference-slope guide clear of
+   the data, and was never regenerated. The audit rerun produced the correct
+   current figure; a pixel diff located the change.
+2. **A claim with no source in `results/`.** The full-upwinding price
+   `6.10179234` in `RESULTS.md` §3.6 came from an interactive probe, not from an
+   experiment. `experiments/m3_crank_nicolson.py` now contains an `upwind_study`
+   writing `results/m3_upwind.csv`, which also supplies the measured
+   first-order convergence rate `0.943` for the fully upwinded scheme.
+3. **Timing figures quoted more precisely than they reproduce.** Re-running moves
+   absolute wall-clock numbers by 5–25%; three work-normalised gains had drifted
+   by up to 25% and the frontier timings by 10–25%. All timings are now quoted to
+   two significant figures with an explicit caveat, and
+   `tests/test_documented_claims.py` checks them with a tolerance band while
+   asserting the deterministic quantities exactly. The fitted power-law slopes
+   (`t^{−1.22}`, `t^{−0.55}`) and all variance-reduction factors are stable to
+   two decimal places across runs.
+4. **A false negative in the sweep itself.** `experiments/audit_documents.py`
+   passed while those stale timings were in place, because its pool of
+   within-column ratios happened to contain matching values. The limitation is
+   now documented in the script, and the targeted assertions carry the load.
+
+### Verification tooling added
+- `tests/test_documented_claims.py` — 35 tests pinning every headline number to
+  the CSV column that produced it, to the digits as printed.
+- `experiments/audit_documents.py` — sweeps **all 498** backtick-quoted numbers
+  in `README.md`, `RESULTS.md`, `paper/` and `docs/` against `results/`. Exit
+  code 0: no unsupported claims.
+
+### Security
+No secrets, tokens, keys or credentials in any tracked file. No email addresses
+outside git commit metadata.
