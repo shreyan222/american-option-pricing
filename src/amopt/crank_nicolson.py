@@ -148,20 +148,38 @@ def operator_coefficients(M: int, r: float, sigma: float, q: float = 0.0, upwind
     return np.where(bad, a_u, a_c), np.where(bad, b_u, b_c), np.where(bad, c_u, c_c)
 
 
-def _check_operator_identities(a, b, c, r, q, atol=1e-9):
-    """Assert the two exact identities from `docs/02` §2.2."""
+def _check_operator_identities(a, b, c, r, q, rtol=1e-10):
+    r"""Assert the two exact identities from `docs/02` §2.2.
+
+    Both identities are *cancellations*: :math:`a_i + b_i + c_i = -r` cancels
+    terms of size :math:`\sigma^2 i^2`, and :math:`a_i(i-1) + b_i i + c_i(i+1) =
+    -q i` cancels terms of size :math:`\sigma^2 i^3`.  At :math:`M = 12800` the
+    latter cancels quantities of order :math:`4\times10^{10}` down to zero, so
+    the achievable residual is about :math:`10^{-5}` in double precision.  The
+    tolerance is therefore scaled by the magnitude of the terms being cancelled
+    rather than being absolute -- an absolute ``1e-9`` bound made the solver
+    refuse to run at ``M >= 12800`` for a residual that was pure round-off.
+    """
     i = np.arange(1, a.size + 1, dtype=float)
+
     const = a + b + c
-    if not np.allclose(const, -r, atol=atol):
+    scale_const = float(np.max(np.abs(a) + np.abs(b) + np.abs(c)))
+    dev_const = float(np.max(np.abs(const + r)))
+    if dev_const > rtol * max(scale_const, 1.0):
         raise AssertionError(
-            f"operator identity A_h*1 = -r violated (max dev "
-            f"{np.max(np.abs(const + r)):.3e}) -- coefficient algebra is wrong"
+            f"operator identity A_h*1 = -r violated: max deviation {dev_const:.3e} "
+            f"exceeds {rtol:.0e} x cancellation scale {scale_const:.3e} "
+            f"-- the coefficient algebra is wrong"
         )
+
     linear = a * (i - 1.0) + b * i + c * (i + 1.0)
-    if not np.allclose(linear, -q * i, atol=atol * max(1.0, i[-1])):
+    scale_lin = float(np.max(np.abs(a) * np.abs(i - 1.0) + np.abs(b) * i + np.abs(c) * (i + 1.0)))
+    dev_lin = float(np.max(np.abs(linear + q * i)))
+    if dev_lin > rtol * max(scale_lin, 1.0):
         raise AssertionError(
-            f"operator identity A_h*S = -qS violated (max dev "
-            f"{np.max(np.abs(linear + q * i)):.3e}) -- indexing or sign error"
+            f"operator identity A_h*S = -qS violated: max deviation {dev_lin:.3e} "
+            f"exceeds {rtol:.0e} x cancellation scale {scale_lin:.3e} "
+            f"-- indexing or sign error"
         )
 
 

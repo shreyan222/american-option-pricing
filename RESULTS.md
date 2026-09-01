@@ -623,3 +623,146 @@ Three findings:
 
 Figures: `figures/m6_convergence.png`, `figures/m6_error_vs_runtime.png`,
 `figures/m6_psor_tolerance.png`.
+
+---
+
+## 7. The early-exercise boundary
+
+Source: `experiments/m7_exercise_boundary.py` → `results/m7_*.csv`.
+Predictions **P1–P7** were written down with their reasons in
+[`docs/03_exercise_boundary.md`](docs/03_exercise_boundary.md) *before* this study
+was run, together with a table of what each failure would mean. Every one is
+tested in `tests/test_boundary.py`.
+
+Base case: `S*(0) = 80.87563`, between the perpetual floor `S∞ = 71.42857` and
+the strike `100`.
+
+### P1 — Monotone in `t` ✅
+
+The largest decrease anywhere along `S*(t)` is `−4.33 × 10⁻²`, i.e. `0.35` of a
+grid cell (`ΔS = 0.125`). Within grid noise; no systematic violation.
+
+### P2 — Terminal boundary `min(K, rK/q)` ✅
+
+The sharpest prediction here: with `K = 100`, `r = 5%`, `q = 10%` the boundary
+just before maturity should be `50`, not `100`.
+
+| `q` | predicted `min(K, rK/q)` | measured just before `T` | relative deviation |
+|---|---|---|---|
+| `0.00` | `100.000` | `98.741` | `1.26%` |
+| `0.02` | `100.000` | `98.618` | `1.38%` |
+| `0.04` | `100.000` | `98.361` | `1.64%` |
+| `0.06` | `83.333` | `83.097` | **`0.28%`** |
+| `0.10` | `50.000` | `49.830` | **`0.34%`** |
+| `0.15` | `33.333` | `33.186` | **`0.44%`** |
+
+**The two cases converge at different rates, and P3 says why.** When `q > r` the
+limit `rK/q` sits away from the payoff kink and is hit to within `0.5%`. When
+`q ≤ r` the limit is `K` and the boundary approaches it along the square-root-log
+law, so at the last resolved time level the gap is `≈ 1.3` on a strike of 100 —
+which is exactly `Kσ√(Δτ ln(1/Δτ))`. The test asserts the predicted *scale* in
+that case rather than demanding an agreement the asymptotics forbid.
+
+**The boundary is genuinely discontinuous at maturity when `q > r`:** the solver
+reports `S*(T) = 100` (at `τ = 0` every in-the-money put is exercised) and
+`S*(T⁻) = 49.83` for `q = 10%`. That jump is a real feature of the problem.
+
+### P3 — The square-root-log law `K − S* ~ Kσ√(τ ln(1/τ))` ✅
+
+| `τ` | `K − S*` | predicted | ratio | expected band `1 ± 1/ln(1/τ)` |
+|---|---|---|---|---|
+| `3.1e−4` | `1.15302` | `1.00442` | `1.1479` | `± 0.124` |
+| `9.4e−4` | `1.55342` | `1.61698` | `0.9607` | `± 0.143` |
+| `3.0e−3` | `2.55916` | `2.62884` | `0.9735` | `± 0.172` |
+| `1.0e−2` | `4.20549` | `4.29193` | `0.9799` | `± 0.217` |
+| `3.0e−2` | `6.42445` | `6.48681` | `0.9904` | `± 0.285` |
+| `1.0e−1` | `9.83177` | `9.59705` | `1.0245` | `± 0.434` |
+
+Regressing `K − S*` on `√(τ ln(1/τ))` through the origin gives a slope of
+**`21.578`** against the predicted `Kσ = 20` — `7.9%` high, inside the `15%`
+band the documentation committed to in advance. This tests the *functional form*:
+a plain `√τ` law would not fit.
+
+The single point at `τ = 3.1 × 10⁻⁴` sits just outside its band (`1.148` vs
+`1.124`). It is two time steps from maturity at `N = 6400`, where the boundary is
+moving fastest and is least resolved in time; it is reported rather than dropped.
+
+The law implies **infinite slope at maturity**. Testing that directly: the
+last-step slope of `S*` grows monotonically with time refinement
+(`N = 400 → 3200`) rather than converging, which a finite terminal slope would
+not do.
+
+### P4 — Volatility ✅ and P5 — Interest rate ✅
+
+| `σ` | `10%` | `15%` | `20%` | `30%` | `40%` | `60%` |
+|---|---|---|---|---|---|---|
+| `S*(0)` | `92.754` | `86.956` | `80.876` | `69.125` | `58.531` | `41.477` |
+
+| `r` | `0%` | `1%` | `2%` | `5%` | `8%` | `12%` |
+|---|---|---|---|---|---|---|
+| `S*(0)` | `0.496` | `69.730` | `74.232` | `80.876` | `84.547` | `87.701` |
+
+Both strictly monotone in the predicted direction, and in both figures the
+measured `S*(0)` tracks the closed-form perpetual boundary
+`S∞ = Kγ/(1+γ)`, `γ = 2r/σ²`, staying strictly above it everywhere.
+
+**The financial reading.** Volatility is the raw material of optionality: the
+right to wait is worth more when the stock can travel further, so the holder
+demands a deeper in-the-money price before surrendering it. The interest rate is
+the entire reason to exercise a put early — exercising converts the option into
+cash `K` earning `r`. At `r = 0` that incentive vanishes completely and the
+measured `S*(0)` collapses to `0.496` on a strike of `100`, i.e. **no exercise
+region at all**, which is the theoretical answer to within floating-point noise
+(§3.7).
+
+### P6 — Maturity ✅
+
+| `T` | `0.25` | `0.5` | `1` | `2` | `5` | `10` | `25` |
+|---|---|---|---|---|---|---|---|
+| `S*(0)` | `86.838` | `83.939` | `80.876` | `77.893` | `74.526` | `72.763` | `71.672` |
+
+Strictly decreasing, and at `T = 25` the boundary is `1.0034 ×` the perpetual
+limit `71.42857` — converging to the closed form from above, as required.
+
+### P7 — Scale invariance ✅
+
+`S*(t)/K` is unchanged across `K ∈ {1, 50, 100, 500}` to `2 × 10⁻³` relative.
+On an identical grid the boundary is **bitwise identical** for `S₀ = 60` and
+`S₀ = 140`, confirming that `S₀` enters nowhere in the free-boundary problem.
+With the default domain `S_max = 4·max(K, S₀)` the mesh moves with `S₀` and the
+boundary shifts by `0.058` — less than one grid spacing, i.e. the cell-alignment
+noise measured next.
+
+### Boundary accuracy: better than the grid, but not monotone in it
+
+`results/m7_boundary_accuracy.csv`, refining `M` at `N = 6400`, deviations from
+the `M = 12800` value:
+
+| `M` | `ΔS` | `S*(0)` refined | deviation | raw estimate | raw deviation |
+|---|---|---|---|---|---|
+| 400 | `1.0000` | `80.88469` | `9.5e−03` | `81.0000` | `1.25e−01` |
+| 800 | `0.5000` | `80.89040` | `1.5e−02` | `81.0000` | `1.25e−01` |
+| 1600 | `0.2500` | `80.97198` | **`9.7e−02`** | `80.7500` | `1.25e−01` |
+| 3200 | `0.1250` | `80.87560` | `4.4e−04` | `80.8750` | `1.6e−04` |
+| 6400 | `0.0625` | `80.87527` | `1.0e−04` | `80.8750` | `1.6e−04` |
+
+The smooth-pasting refinement usually buys about an order of magnitude over the
+raw staircase, **but the boundary error is not monotone in `ΔS`**: at `M = 1600`
+it is `9.7 × 10⁻²`, worse than at `M = 400`. Where `S*` happens to fall inside a
+cell matters, because the discrete exercise set overshoots the true boundary by
+up to one cell and the local quadratic model then extrapolates from an unusually
+small gap. This is reported rather than smoothed away; it is why the tests that
+compare boundaries across grids use a tolerance of one grid spacing.
+
+### PDE versus lattice
+
+`results/m7_pde_vs_lattice.csv`. The lattice boundary is **undefined at 58 of
+3001 time levels** (`t ≤ 0.019`), because the cone `S₀e^{±iσ√Δt}` rooted at a
+single spot does not reach the exercise region near `t = 0`. Where both are
+defined they agree to a mean absolute difference of `0.204`, about half the
+lattice node spacing at `N = 3000`. The PDE grid is fixed in `S` and resolves
+`S*` over the whole time axis — a structural advantage of the PDE approach that
+has nothing to do with accuracy or speed.
+
+Figures: `figures/m7_boundary_families.png`,
+`figures/m7_boundary_sensitivity.png`, `figures/m7_boundary_asymptotics.png`.

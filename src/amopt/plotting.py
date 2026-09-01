@@ -102,15 +102,15 @@ def color(name: str) -> str:
     return METHOD_COLORS.get(name.lower(), SLOTS[0])
 
 
-def annotate(ax, x, y, text, dx=6, dy=6, **kw):
+def annotate(ax, x, y, text, dx=6, dy=6, fontsize=8, color=INK_2, **kw):
     """Direct label in text ink (never the series colour)."""
     ax.annotate(
         text,
         xy=(x, y),
         xytext=(dx, dy),
         textcoords="offset points",
-        fontsize=8,
-        color=INK_2,
+        fontsize=fontsize,
+        color=color,
         **kw,
     )
 

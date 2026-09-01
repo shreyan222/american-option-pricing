@@ -8,7 +8,7 @@ cross-check.
 Every algorithm here is implemented from scratch. No option-pricing library is
 used, and every number in this README comes from an experiment in this repository.
 
-> **Status:** Milestone 6 of 8 complete. See [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+> **Status:** Milestone 7 of 8 complete. See [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ## Setup
 
@@ -27,6 +27,7 @@ python experiments/m3_crank_nicolson.py    # ~4 min
 python experiments/m4_longstaff_schwartz.py # ~2 min
 python experiments/m5_variance_reduction.py # ~2 min
 python experiments/m6_convergence.py        # ~7 min
+python experiments/m7_exercise_boundary.py  # ~6 min
 ```
 
 Each script writes CSVs to `results/` and figures to `figures/`, and prints a
@@ -123,6 +124,22 @@ exercise dates, or a degree-16 basis. More exercise dates shrink the Bermudan
 bias (`0.109 → 0.0015`, cleanly `O(1/n)`) while the accumulated regression error
 *grows* (`−0.004 → +0.017`); the total is minimised around 200 dates.
 
+### The free boundary, recovered rather than imposed
+
+`S*(t)` is never an input: at each time level the set of nodes where the PSOR
+projection selects the payoff *is* the discrete exercise region. All seven
+predictions in [`docs/03`](docs/03_exercise_boundary.md) — stated before the
+study was run — hold.
+
+![Boundary families](figures/m7_boundary_families.png)
+
+The sharpest of them: with `K = 100`, `r = 5%` and `q = 10%`, the boundary just
+before maturity should be `min(K, rK/q) = 50`, not `100`. Measured: `49.830`
+(`0.34%`). And the near-maturity law `K − S* ~ Kσ√(τ ln(1/τ))` fits with a slope
+of `21.578` against the predicted `Kσ = 20`:
+
+![Boundary asymptotics](figures/m7_boundary_asymptotics.png)
+
 The lattice beats the PDE solver throughout the tested range — CRR's `t^{−0.55}`
 is exactly `O(1/N)` accuracy at `O(N²)` cost. Crank–Nicolson's error falls faster
 with cost, so the fitted power laws cross at `t ≈ 11 s`. What the PDE actually
@@ -138,6 +155,9 @@ level, and stable Greeks from the same grid.
 - [`docs/02_crank_nicolson.md`](docs/02_crank_nicolson.md) — the finite-difference
   derivation: coefficients, the θ-scheme, boundary rows, the discrete LCP, PSOR,
   M-matrix conditions, and Rannacher start-up.
+- [`docs/03_exercise_boundary.md`](docs/03_exercise_boundary.md) — seven numbered
+  predictions about `S*(t)`, with reasons and a falsification table, written
+  before the sensitivity study was run.
 
 ## Layout
 

@@ -2,7 +2,7 @@
 
 Persistent state for this repository. Update after **every** milestone.
 
-**Current position:** Milestone 6 complete. Next: Milestone 7 (early-exercise boundary).
+**Current position:** Milestone 7 complete. Next: Milestone 8 (final research report).
 
 ---
 
@@ -303,4 +303,54 @@ See `RESULTS.md` §6.
   conclusions.
 
 ### Next
-Milestone 7: recover `S*(t)` and study its sensitivity to `σ`, `r` and `T`.
+Superseded — see Milestone 7 below.
+
+---
+
+## Milestone 7 — The early-exercise boundary ✅
+
+### Completed
+- `docs/03_exercise_boundary.md` — seven numbered predictions (P1–P7) with their
+  reasons and a falsification table, written **before** the study was run.
+- `tests/test_boundary.py` — 23 tests, one per prediction. Total suite: 238.
+- `experiments/m7_exercise_boundary.py` — eight result tables, three figures.
+
+### Important decisions
+- **Predictions before measurement.** A sensitivity study that only reports what
+  it found can rationalise any result; the doc commits in advance, including to
+  the *rate* of convergence in P3 and to the tolerances that follow from it.
+- **P2's tolerance differs by case, for a stated reason.** For `q ≤ r` the limit
+  is `K` and is approached along the P3 square-root-log law, so the last resolved
+  level is `≈ 1.3` away on a strike of 100; the test asserts that predicted
+  scale. For `q > r` the limit is away from the kink and 1% is the right bar.
+- **"Infinite slope at maturity" is tested as divergence under refinement**, not
+  as a ratio against mid-life on one grid — the latter is much weaker and would
+  pass for a boundary with a large but finite terminal slope.
+- **The `t = T` point is omitted from the family plots.** `S*(T) = K` by
+  definition and for `q > r` the boundary jumps there; plotting the jump
+  compresses every other curve. The discontinuity is reported in text instead.
+
+### Numerical results
+See `RESULTS.md` §7. All seven predictions hold.
+
+### Known limitations
+- **The boundary error is not monotone in `ΔS`.** At `M = 1600` the deviation is
+  `9.7 × 10⁻²`, worse than at `M = 400` (`9.5 × 10⁻³`), because where `S*` falls
+  inside a cell matters. Cross-grid comparisons therefore use a tolerance of one
+  grid spacing.
+- The P3 ratio at `τ = 3.1 × 10⁻⁴` falls just outside its predicted band
+  (`1.148` vs `1.124`); that point is two time steps from maturity and is
+  under-resolved in time. Reported, not dropped.
+- Only the put boundary is extracted; the call-with-dividends boundary would need
+  the mirror-image logic in `_extract_boundary`.
+
+### Unresolved
+- None. One genuine bug was found during Milestone 7: the operator-identity
+  assertion used an absolute `1e-9` tolerance on a cancellation whose achievable
+  residual grows with the grid, so the solver refused to run at `M ≥ 12800` for
+  pure round-off. The tolerance is now scaled by the magnitude of the terms being
+  cancelled, and mutation checks confirm it still catches real sign and indexing
+  errors.
+
+### Next
+Milestone 8: the final research report in `paper/`.
