@@ -8,7 +8,7 @@ cross-check.
 Every algorithm here is implemented from scratch. No option-pricing library is
 used, and every number in this README comes from an experiment in this repository.
 
-> **Status:** Milestone 5 of 8 complete. See [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+> **Status:** Milestone 6 of 8 complete. See [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ## Setup
 
@@ -26,6 +26,7 @@ python experiments/m2_analytic_anchors.py
 python experiments/m3_crank_nicolson.py    # ~4 min
 python experiments/m4_longstaff_schwartz.py # ~2 min
 python experiments/m5_variance_reduction.py # ~2 min
+python experiments/m6_convergence.py        # ~7 min
 ```
 
 Each script writes CSVs to `results/` and figures to `figures/`, and prints a
@@ -100,6 +101,33 @@ Antithetic pairs are dependent, so the standard error must be computed over
 non-monotone butterfly, whose 95% interval then covers only `90.6%`:
 
 ![Coverage](figures/m5_coverage.png)
+
+### The headline result: error against wall-clock cost
+
+Reference solution `6.090370613 ± 9.4 × 10⁻⁸`, built by Richardson-extrapolating
+two methods that share no code and quoting their disagreement as the uncertainty.
+
+| method | error scaling | time to `10⁻³` | time to `10⁻⁴` | best achieved |
+|---|---|---|---|---|
+| CRR lattice | `t^{−0.55}` | `0.015 s` | `0.234 s` | `9.4 × 10⁻⁶` |
+| CN + PSOR | `t^{−1.22}` | `0.197 s` | `1.740 s` | `2.0 × 10⁻⁵` |
+| LSM (antithetic + control) | floors at the policy bias | **never** | **never** | `1.4 × 10⁻²` |
+
+![Error vs runtime](figures/m6_error_vs_runtime.png)
+
+**Monte Carlo loses this comparison by three orders of magnitude, and not because
+of sampling noise.** The seed-to-seed standard deviation falls as `N^{−0.49}`
+exactly as theory predicts, but the RMSE floors at `1.4 × 10⁻²` because the
+exercise policy is biased — and that bias does not respond to 400,000 paths, 400
+exercise dates, or a degree-16 basis. More exercise dates shrink the Bermudan
+bias (`0.109 → 0.0015`, cleanly `O(1/n)`) while the accumulated regression error
+*grows* (`−0.004 → +0.017`); the total is minimised around 200 dates.
+
+The lattice beats the PDE solver throughout the tested range — CRR's `t^{−0.55}`
+is exactly `O(1/N)` accuracy at `O(N²)` cost. Crank–Nicolson's error falls faster
+with cost, so the fitted power laws cross at `t ≈ 11 s`. What the PDE actually
+buys is not speed: it is the whole value surface, the free boundary at every time
+level, and stable Greeks from the same grid.
 
 ## Mathematical background
 

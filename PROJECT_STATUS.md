@@ -2,7 +2,7 @@
 
 Persistent state for this repository. Update after **every** milestone.
 
-**Current position:** Milestone 5 complete. Next: Milestone 6 (convergence and computational efficiency).
+**Current position:** Milestone 6 complete. Next: Milestone 7 (early-exercise boundary).
 
 ---
 
@@ -252,5 +252,55 @@ See `RESULTS.md` §5.
   dangerous direction.
 
 ### Next
-Milestone 6: high-resolution reference solution, full convergence and
-error-vs-runtime study across both methods.
+Superseded — see Milestone 6 below.
+
+---
+
+## Milestone 6 — Convergence and computational efficiency ✅
+
+### Completed
+- `experiments/m6_convergence.py` — eight result tables, three figures.
+- Reference solution `6.090370613 ± 9.36 × 10⁻⁸`, built from two independently
+  Richardson-extrapolated methods.
+- CN swept over `M`, `N`, PSOR tolerance, and domain truncation.
+- LSM swept over paths, exercise dates, basis family and degree, and pushed to
+  the memory ceiling.
+- The error-vs-runtime efficient frontier for all three methods.
+
+### Important decisions
+- **The reference is two independent extrapolations, not one method at high
+  resolution.** Their spread *is* the quoted uncertainty. A single method's
+  extrapolation would have no error estimate at all.
+- **Convergence orders are fitted only above the other axis's error floor.**
+  Fitting through the floor understated both orders (`1.957` vs `1.995` in space,
+  `1.121` vs `1.223` in time).
+- **The domain study holds `ΔS` fixed**, scaling `M` with `S_max`. Holding `M`
+  fixed confounds truncation with resolution and reverses the conclusion.
+- **Monte Carlo error is reported as RMSE over repeated seeds**, not as one run's
+  `|error|`, because a single MC error is a random draw.
+- **The LSM frontier sweeps paths *and* exercise dates**, since with dates fixed
+  the RMSE floors regardless of path count. The reported curve is the Pareto
+  lower envelope.
+
+### Numerical results
+See `RESULTS.md` §6.
+
+### Known limitations
+- **LSM's accuracy is bias-limited at `≈ 1.4 × 10⁻²`** and does not improve with
+  more paths (400,000), more dates (400), or a richer basis (degree 16). The
+  sampling s.d. falls as `N^{-0.49}` exactly as theory says; the bias does not
+  move. Removing it needs a better exercise policy or a dual upper bound, not
+  more computation.
+- LSM memory is `O(n_paths × n_dates)`; the largest configurations tested peak at
+  several GB, which caps the frontier grid.
+- The CN/CRR crossover at `t ≈ 11 s` is an extrapolation of fitted power laws to
+  the edge of the measured range, not a directly observed crossing.
+
+### Unresolved
+- None. Two issues found during Milestone 6 (order fits contaminated by the
+  other axis's floor; the domain study confounding truncation with resolution)
+  were diagnosed and corrected, and both corrections changed the reported
+  conclusions.
+
+### Next
+Milestone 7: recover `S*(t)` and study its sensitivity to `σ`, `r` and `T`.

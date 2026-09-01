@@ -461,3 +461,165 @@ materially larger variance.
 
 Figures: `figures/m5_error_vs_paths.png`, `figures/m5_efficiency.png`,
 `figures/m5_coverage.png`.
+
+---
+
+## 6. Convergence and computational efficiency
+
+Source: `experiments/m6_convergence.py` → `results/m6_*.csv`.
+
+### 6.1 The reference solution
+
+Neither solver is accurate enough at any affordable resolution to benchmark
+itself, so the reference is built by Richardson-extrapolating **two methods that
+share no code** and quoting their disagreement as the uncertainty:
+
+| construction | value |
+|---|---|
+| CRR lattice, `2V_{2N} − V_N` at `N = 40,000/80,000` | `6.090370659` |
+| CN, second-order space Richardson + a time correction at the measured order `p = 1.265` | `6.090370566` |
+| **Reference (mean)** | **`6.090370613`** |
+| **Uncertainty (their spread)** | **`9.36 × 10⁻⁸`** |
+
+Every error in this section is measured against `6.090370613`.
+
+### 6.2 Crank–Nicolson: grid resolution
+
+`results/m6_cn_grid.csv`. Measured orders, fitting only points more than `10×`
+above the other axis's irreducible error floor:
+
+| axis | order | points used / dropped into the floor |
+|---|---|---|
+| space `ΔS` | **`1.995`** | 4 / 2 |
+| time `Δτ` | **`1.223`** | 3 / 3 |
+
+The floors are `5.35 × 10⁻⁵` (time axis fixed at `N = 6400`) and
+`2.05 × 10⁻⁵` (space axis fixed at `M = 6400`). Fitting through them instead
+gave `1.957` and `1.121`, i.e. an understated order in both cases — the same trap
+identified in §3.2, now handled explicitly. The temporal order of `1.223` is
+consistent with the `1.265` measured independently by self-convergence in
+Milestone 3.
+
+### 6.3 PSOR tolerance: tighter is not better past a point
+
+`results/m6_cn_tolerance.csv`, `ω = 1.4`:
+
+| grid | discretisation error floor | tolerance at which the floor is reached | cost of tightening to `10⁻¹²` |
+|---|---|---|---|
+| `M = N = 800` | `5.37 × 10⁻⁴` | `10⁻⁵` | `3.0×` the PSOR sweeps |
+| `M = N = 3200` | `4.61 × 10⁻⁵` | `10⁻⁶` | `3.1×` the PSOR sweeps |
+
+The linear-complementarity solve only has to be accurate relative to the
+discretisation error. Beyond `tol ≈ 10⁻⁶` the price does not move and the sweeps
+triple. This is a free `3×` speedup that a default of `tol = 10⁻¹²` throws away.
+
+### 6.4 Domain truncation is negligible beyond `S_max = 2K`
+
+`results/m6_cn_domain.csv`, with `M` scaled so that `ΔS = 0.125` stays fixed:
+
+| `S_max` | `1.5K` | `2K` | `2.5K` | `3K` | `4K` | `6K` | `8K` | `12K` |
+|---|---|---|---|---|---|---|---|---|
+| error | `1.621e−04` | `6.540e−05` | `6.540e−05` | `6.540e−05` | `6.540e−05` | `6.540e−05` | `6.540e−05` | `6.540e−05` |
+
+Truncation is only visible at `S_max = 1.5K`; from `2K` onward the error is
+identical to six digits and is pure discretisation error. The default `4K` is
+safely inside the flat region.
+
+**This measurement is only meaningful because `ΔS` was held fixed.** Holding `M`
+fixed instead — the obvious thing to do — makes a larger domain mean a coarser
+grid, and the measured error then *rises* monotonically from `3.3 × 10⁻⁵` at `2K`
+to `4.2 × 10⁻⁴` at `12K`, which says nothing about truncation at all. The first
+version of this study made exactly that mistake.
+
+### 6.5 Monte Carlo: `O(N^{-1/2})`, confirmed — and a bias floor
+
+`results/m6_lsm_paths.csv`, RMSE over `8` seeds per point, 50 exercise dates:
+
+| method | fitted slope of the seed-to-seed s.d. against paths |
+|---|---|
+| naive | `−0.4806` |
+| antithetic + control | `−0.4948` |
+
+Both are consistent with the theoretical `−1/2`. But the **RMSE against the
+reference does not follow the sampling error down**: at 400,000 paths the
+sampling s.d. has fallen to well under `10⁻²` while the RMSE is `0.01474`,
+because the bias is `−0.01361` and does not move.
+
+`results/m6_lsm_dates.csv` shows why adding exercise dates does not fix it
+(100,000 paths):
+
+| dates | RMSE | exercise-date bias | regression error | runtime |
+|---|---|---|---|---|
+| 5 | `0.10696` | `+0.10923` | `−0.00352` | `0.03 s` |
+| 10 | `0.06143` | `+0.05675` | `+0.00385` | `0.05 s` |
+| 25 | `0.02841` | `+0.02326` | `+0.00346` | `0.13 s` |
+| 50 | `0.02286` | `+0.01175` | `+0.00869` | `0.27 s` |
+| 100 | `0.02010` | `+0.00592` | `+0.00791` | `0.53 s` |
+| 200 | **`0.01739`** | `+0.00297` | `+0.01216` | `1.06 s` |
+| 400 | `0.02372` | `+0.00149` | `+0.01748` | `2.29 s` |
+
+**The two error terms trade off against each other.** More exercise dates shrink
+the Bermudan bias (`0.109 → 0.0015`, cleanly `O(1/n)`) but the accumulated
+regression/policy error *grows* with the number of decisions (`−0.004 → +0.017`).
+The total is minimised around 200 dates and gets worse after that. This is the
+central limitation of the method, and it is not a sampling problem.
+
+Pushing to the memory ceiling (`results/m6_lsm_large.csv`) confirms it:
+
+| configuration | bias | s.d. | RMSE | runtime |
+|---|---|---|---|---|
+| 200,000 paths × 200 dates | `−0.01496` | `0.00514` | `0.01561` | `1.47 s` |
+| 200,000 paths × 400 dates | `−0.01456` | `0.00792` | `0.01609` | `2.51 s` |
+| 400,000 paths × 200 dates | `−0.01601` | `0.00395` | `0.01637` | `1.85 s` |
+
+The sampling s.d. falls with paths exactly as it should; the bias sits at
+`≈ −0.015` and refuses to move. **The best RMSE anywhere in the entire sweep is
+`1.44 × 10⁻²`** (80,000 paths × 100 dates), about `0.24%` of the price.
+
+### 6.6 Monomial and Chebyshev bases are the same space — and the data proves it
+
+`results/m6_lsm_basis.csv`. Monomials and Chebyshev polynomials of the same
+degree span the *same* function space, so the least-squares fit, every exercise
+decision, and the price must be identical in exact arithmetic. Measured
+`|price_poly − price_chebyshev|`:
+
+| degree | 1 | 2 | 3 | 4 | 6 | 8 | 12 | 16 |
+|---|---|---|---|---|---|---|---|---|
+| difference | `0` | `0` | `0` | `0` | `3.4e−05` | `2.1e−04` | `2.1e−03` | `2.0e−03` |
+
+Bitwise identical to degree 4, then diverging — the divergence is **pure
+conditioning**, nothing else. Weighted Laguerre carries an `e^{-x/2}` factor and
+so spans a genuinely different space; it differs at every degree.
+
+RMSE is minimised around degree 3–4 for every basis and gets slowly worse
+afterwards, so a low-degree basis is the right default.
+
+### 6.7 Error against wall-clock cost — the headline comparison
+
+`results/m6_frontier.csv`. Fitted power laws for error against runtime:
+
+| method | error scaling | time to `10⁻³` | time to `10⁻⁴` | best achieved |
+|---|---|---|---|---|
+| CRR lattice | `t^{−0.55}` | `0.015 s` | `0.234 s` | `9.4 × 10⁻⁶` at `11.8 s` |
+| CN + PSOR | `t^{−1.22}` | `0.197 s` | `1.740 s` | `2.0 × 10⁻⁵` at `9.8 s` |
+| LSM (antithetic + control) | floors | **never** | **never** | `1.4 × 10⁻²` at `0.42 s` |
+
+Three findings:
+
+1. **Monte Carlo is not competitive for this problem, by three orders of
+   magnitude.** LSM never reaches `10⁻²` at any configuration tested, while
+   Crank–Nicolson reaches it in `0.078 s` and the lattice in `0.015 s`. The
+   `O(N^{-1/2})` sampling law is not the binding constraint — the policy bias is.
+2. **The lattice beats the PDE solver throughout the tested range.** CRR's
+   `t^{−0.55}` follows directly from `O(1/N)` accuracy at `O(N²)` cost. CN's
+   error falls faster with cost (`t^{−1.22}`), so the fitted power laws cross at
+   `t ≈ 11 s`, `error ≈ 9.4 × 10⁻⁶` — right at the edge of the measured range.
+   For a single-asset vanilla American put, the lattice is the efficient choice
+   at any accuracy a practitioner would ask for.
+3. **What the PDE buys is not speed.** It returns the whole value surface, the
+   free boundary at every time level (the lattice cone misses it near `t = 0`,
+   §1), stable Greeks from the same grid, and a genuinely second-order spatial
+   discretisation. Those are the reasons to pay `10×`.
+
+Figures: `figures/m6_convergence.png`, `figures/m6_error_vs_runtime.png`,
+`figures/m6_psor_tolerance.png`.
