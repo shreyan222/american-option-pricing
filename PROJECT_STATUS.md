@@ -2,7 +2,7 @@
 
 Persistent state for this repository. Update after **every** milestone.
 
-**Current position:** Milestone 1 complete. Next: Milestone 2 (mathematical formulation).
+**Current position:** Milestone 2 complete. Next: Milestone 3 (Crank–Nicolson + PSOR).
 
 ---
 
@@ -45,5 +45,55 @@ See `RESULTS.md` §1.
 - None.
 
 ### Next
-Milestone 2: write the optimal-stopping / variational-inequality derivation and
-the Crank–Nicolson discretisation in `docs/`.
+Superseded — see Milestone 2 below.
+
+---
+
+## Milestone 2 — Mathematical formulation ✅
+
+### Completed
+- `docs/01_formulation.md` — risk-neutral valuation, the optimal-stopping
+  representation, the Snell envelope and why it forces `𝓛V ≤ 0`, exercise vs
+  continuation regions, the variational inequality and its complementarity form,
+  terminal and boundary conditions (including why `V(0,t) = K` for the American
+  put but `Ke^{−rτ}` for the European), value matching, smooth pasting with an
+  argument for *why* `V_S = −1`, and the perpetual closed form.
+- `docs/02_crank_nicolson.md` — the full discretisation: grid construction with
+  the strike pinned to a node, the tridiagonal coefficients with every factor of
+  `ΔS` cancelled, the θ-scheme, the boundary rows at both time levels, the
+  discrete LCP, the derivation of PSOR from Gauss–Seidel → SOR → projection, the
+  M-matrix / cell-Péclet analysis, red–black ordering, Rannacher start-up, the
+  Brennan–Schwartz cross-check, and boundary extraction by interpolating the
+  early-exercise gap.
+- `src/amopt/perpetual.py` + 12 tests.
+- `experiments/m2_analytic_anchors.py`.
+
+### Important decisions
+- **Solve in time-to-maturity** `τ = T − t`, so the terminal condition becomes an
+  initial condition and the scheme marches forward.
+- **Uniform grid in `S`, not in `log S`.** Every power of `ΔS` cancels out of the
+  coefficients, `S = 0` and the boundary region are both in the domain, and the
+  strike can be pinned exactly to a node (which preserves second-order accuracy
+  through the payoff kink).
+- **The M-matrix condition is checked, not assumed.** `a_i ≥ 0` requires
+  `i ≥ (r−q)/σ²`; for the base case that is `1.25`, so exactly one row (`i = 1`)
+  fails. The solver will count violating rows and offer upwinding; the effect is
+  to be *measured* in Milestone 3, not asserted negligible.
+- **Two exact identities** (`𝓐ₕ1 = −r`, `𝓐ₕS = −qS`) are asserted at assembly.
+  Central differences are exact on constants and linears, so these catch sign and
+  indexing errors in the coefficients.
+
+### Numerical results
+See `RESULTS.md` §2.
+
+### Known limitations
+- The maturity-limit study hits the CRR noise floor beyond `T ≈ 50`; the
+  perpetual limit cannot be verified more tightly with the lattice alone.
+
+### Unresolved
+- None. Two issues found during Milestone 2 were diagnosed and fixed: the `r = 0`
+  perpetual degeneracy, and the apparent non-monotonicity of the gap to the
+  perpetual value (lattice error, now quantified and reported).
+
+### Next
+Milestone 3: implement `src/amopt/crank_nicolson.py` per `docs/02`.

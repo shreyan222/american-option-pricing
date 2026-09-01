@@ -8,7 +8,7 @@ cross-check.
 Every algorithm here is implemented from scratch. No option-pricing library is
 used, and every number in this README comes from an experiment in this repository.
 
-> **Status:** Milestone 1 of 8 complete. See [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+> **Status:** Milestone 2 of 8 complete. See [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ## Setup
 
@@ -22,6 +22,7 @@ pytest -q
 
 ```bash
 python experiments/m1_european_baseline.py
+python experiments/m2_analytic_anchors.py
 ```
 
 Each script writes CSVs to `results/` and figures to `figures/`, and prints a
@@ -41,6 +42,16 @@ The CRR European price converges at a measured log–log slope of `−0.990`
 `3.15 × 10⁻¹¹`.
 
 ![CRR convergence](figures/m1_binomial_convergence.png)
+
+## Mathematical background
+
+- [`docs/01_formulation.md`](docs/01_formulation.md) — optimal stopping, the
+  variational inequality and complementarity conditions, boundary conditions,
+  value matching and smooth pasting, the early-exercise boundary, and the
+  perpetual closed form.
+- [`docs/02_crank_nicolson.md`](docs/02_crank_nicolson.md) — the finite-difference
+  derivation: coefficients, the θ-scheme, boundary rows, the discrete LCP, PSOR,
+  M-matrix conditions, and Rannacher start-up.
 
 ## Layout
 

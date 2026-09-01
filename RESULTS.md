@@ -38,3 +38,43 @@ alternates with period two in `N`. Averaging adjacent lattices,
 `½(V_N + V_{N+1})`, reduces the mean absolute error by a factor of **15.6×**.
 
 Figures: `figures/m1_binomial_convergence.png`, `figures/m1_american_convergence.png`.
+
+---
+
+## 2. Analytic anchors from the free-boundary formulation
+
+Source: `experiments/m2_analytic_anchors.py` →
+`results/m2_perpetual_anchors.csv`, `results/m2_maturity_limit.csv`.
+
+The perpetual American put has a closed form (derivation: `docs/01_formulation.md`
+§1.6), which gives an *exact* upper bound on the finite-maturity value and an
+exact lower bound on the exercise boundary. Both are used as validation.
+
+| Quantity (base case) | Value |
+|---|---|
+| `β₋` (negative root of the characteristic quadratic) | `−2.500000` |
+| Perpetual boundary `S∞ = K·γ/(1+γ)`, `γ = 2r/σ² = 2.5` | `71.428571` |
+| Perpetual put value at `S₀ = 100` | `12.320033` |
+| CRR American put, `T = 1` | `6.089990` |
+| CRR American put, `T = 200` | `12.318306` (`99.99%` of the perpetual value) |
+
+**Dominance holds in all 10 parameter regimes:** `V_amer(T) ≤ V_perp` for every
+regime in `amopt.config.REGIMES`.
+
+**The `r = 0` case is a genuine degeneracy, not a bug.** With `r = 0` we get
+`β₋ = 0` and `S∞ = 0`, so the exercise region is empty. But under `Q` with
+`r = 0`, `S_t → 0` almost surely, so `(K − S_t)⁺ → K` and the supremum over
+stopping times is `K = 100` — approached, never attained. An earlier version
+returned `0` here ("never exercise, so worthless"), which broke the dominance
+check against the `r = 0` American put of `7.965070`. The limit is now returned
+correctly and asserted in `tests/test_perpetual.py`.
+
+**The monotone approach to the perpetual value is only resolvable above the
+lattice noise floor.** `V_perp − V_amer(T)` decreases monotonically for
+`T ≤ 50`. At `T = 100` and `T = 200` the gap is `1.69 × 10⁻³` and `1.73 × 10⁻³`
+while the lattice's own discretisation error, measured as `|V_N − V_{N/2}|`, is
+`4.3 × 10⁻⁴` to `1.5 × 10⁻³`. The apparent non-monotonicity at those two
+maturities is CRR discretisation error, not a violation of the theory — 2 of 10
+maturities are below the noise floor. This is reported rather than trimmed.
+
+Figure: `figures/m2_perpetual_limit.png`.
