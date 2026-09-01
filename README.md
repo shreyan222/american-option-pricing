@@ -8,7 +8,10 @@ cross-check.
 Every algorithm here is implemented from scratch. No option-pricing library is
 used, and every number in this README comes from an experiment in this repository.
 
-> **Status:** Milestone 7 of 8 complete. See [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+> **Status:** complete — all 8 milestones. Read the full write-up in
+> [`paper/american_put_pde_vs_monte_carlo.md`](paper/american_put_pde_vs_monte_carlo.md),
+> the verified numbers in [`RESULTS.md`](RESULTS.md), and the project history in
+> [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ## Setup
 
@@ -30,6 +33,11 @@ python experiments/m6_convergence.py        # ~7 min
 python experiments/m7_exercise_boundary.py  # ~6 min
 ```
 
+The test suite includes `tests/test_documented_claims.py`, which checks **every
+headline number in this README, in `RESULTS.md` and in the paper against the CSV
+that produced it**. Rerun an experiment, move a number, and the suite fails until
+the documents are updated.
+
 Each script writes CSVs to `results/` and figures to `figures/`, and prints a
 summary. [`RESULTS.md`](RESULTS.md) records every verified number.
 
@@ -46,19 +54,22 @@ Base contract `S₀ = K = 100, T = 1, r = 5%, σ = 20%, q = 0`:
 Two solvers sharing no code agree to `4.7 × 10⁻⁵` in the base case, and to
 `2.5 × 10⁻⁴` or better across all ten parameter regimes.
 
-**Measured convergence orders** (each axis refined against a reference on the
-same grid in the other axis, so the other axis's error cancels):
+**Measured convergence orders.** Each axis is refined with the other held fixed,
+and the fit uses only points more than `10×` above the other axis's irreducible
+error floor — fitting through the floor understates the order.
 
 | | order |
 |---|---|
-| CRR lattice, steps | `1.00` |
-| CN, space `ΔS` | `2.11` |
-| CN, time `Δτ` (American) | `1.26` |
-| CN, time `Δτ` (fully implicit) | `1.01` |
+| CRR lattice, steps `N` | `0.990` |
+| CN, space `ΔS` | **`1.995`** |
+| CN, time `Δτ` (American) | **`1.223`** (`1.265` by independent self-convergence) |
+| CN, time `Δτ` (fully implicit) | `1.013` |
+| LSM, sampling s.d. vs paths | `−0.4948` |
 
-Crank–Nicolson is formally second order in time, but the American free boundary
-is only located to `O(Δτ)` — so the *measured* temporal order for the American
-put is `1.26`, not `2`.
+Crank–Nicolson is formally second order in time, and *is* second order in space,
+but the American free boundary is only located to `O(Δτ)` — so the measured
+temporal order for the American put is `1.22`–`1.27`, not `2`. Two independent
+measurements agree.
 
 ![CN convergence](figures/m3_cn_convergence.png)
 ![Value and boundary](figures/m3_value_and_boundary.png)
@@ -162,11 +173,18 @@ level, and stable Greeks from the same grid.
 ## Layout
 
 ```
-src/amopt/     library: black_scholes, binomial, config, plotting
-tests/         pytest suite
-experiments/   runnable scripts producing results/ and figures/
-results/       CSV outputs (source of truth for all documented numbers)
-figures/       PNG outputs
-docs/          mathematical derivations
-paper/         final research report
+src/amopt/
+  black_scholes.py       closed-form European prices and Greeks
+  binomial.py            CRR lattice: European, American, Bermudan
+  perpetual.py           perpetual American put — an exact analytic anchor
+  crank_nicolson.py      CN finite differences, PSOR, Brennan–Schwartz
+  lsm.py                 Longstaff–Schwartz least-squares Monte Carlo
+  variance_reduction.py  antithetic variates and a European control variate
+  config.py, plotting.py shared parameter regimes and figure style
+tests/                   271 tests, including claim verification against results/
+experiments/             runnable scripts producing results/ and figures/
+results/                 CSV outputs — the source of truth for every number
+figures/                 PNG outputs
+docs/                    mathematical derivations (01 formulation, 02 CN, 03 boundary)
+paper/                   the research report
 ```

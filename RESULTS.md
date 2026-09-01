@@ -272,10 +272,14 @@ Three findings:
    At 500 paths with an 11-function basis the in-sample estimate is `6.613`, i.e.
    **9.0% above** the true Bermudan value — and above the *American* value
    `6.0904`, so it is not even a valid upper-bound-free estimate.
-2. **The two estimators bracket the truth.** In-sample is above the exact
-   Bermudan value at every path count; out-of-sample is below it at every path
-   count. Out-of-sample is a valid lower bound because it evaluates a fixed
-   policy; in-sample is biased high by the hindsight.
+2. **The two estimators bracket the truth — with one instructive exception.**
+   Out-of-sample is below the exact Bermudan value at every path count, as a
+   fixed-policy lower bound must be. In-sample is above it in **9 of the 10
+   cells**; at 200,000 paths with a cubic basis it falls `0.0037` *below*,
+   because by then the foresight bias (`+0.0026`) has decayed past the
+   policy-suboptimality bias pushing the other way. In-sample is biased high by
+   hindsight, but that is not the only bias acting on it, and at large samples
+   it stops being the dominant one.
 3. **The bias decays roughly like `1/n_paths` and grows with the number of basis
    functions**, consistent with an overfitting bias of order (parameters/paths).
    It is statistically undetectable at 200,000 paths with a cubic basis

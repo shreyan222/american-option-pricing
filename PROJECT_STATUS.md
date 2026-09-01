@@ -2,7 +2,7 @@
 
 Persistent state for this repository. Update after **every** milestone.
 
-**Current position:** Milestone 7 complete. Next: Milestone 8 (final research report).
+**Current position:** All 8 milestones complete. Final audit done.
 
 ---
 
@@ -353,4 +353,48 @@ See `RESULTS.md` §7. All seven predictions hold.
   errors.
 
 ### Next
-Milestone 8: the final research report in `paper/`.
+Superseded — see Milestone 8 below.
+
+---
+
+## Milestone 8 — Final research report ✅
+
+### Completed
+- `paper/american_put_pde_vs_monte_carlo.md` — the full report: abstract,
+  introduction, mathematical formulation, European benchmark, binomial method,
+  Crank–Nicolson + PSOR, Longstaff–Schwartz, variance reduction, convergence
+  analysis, error-vs-runtime comparison, exercise-boundary analysis, limitations,
+  conclusion, and reproduction instructions.
+- `tests/test_documented_claims.py` — **33 tests that verify every headline
+  number in `README.md`, `RESULTS.md` and `paper/` against the CSV that produced
+  it.** This is the mechanical enforcement of the no-fabrication rule: rerun an
+  experiment, move a number, and the test fails until the documents are updated.
+- Total suite: 271 tests passing.
+
+### Important decisions
+- **The claim tests check the digits as printed**, not just that a value is
+  close. They normalise only the typographic minus sign.
+- They **skip rather than fail** when `results/` is absent, so a fresh clone can
+  run the unit suite before running the experiments.
+
+### What the claim tests caught
+Writing them immediately falsified one of my own claims. The write-up said "the
+two estimators bracket the truth: in-sample above the exact Bermudan value at
+every path count". In fact in-sample is above it in **9 of 10 cells**; at 200,000
+paths with a cubic basis it falls `0.0037` *below*, because by then the foresight
+bias (`+0.0026`) has decayed past the policy-suboptimality bias pushing the other
+way. `RESULTS.md`, the paper and the test now all state the exception. The README
+also still carried the Milestone 3 convergence orders after Milestone 6 had
+superseded them with floor-corrected values; that is fixed too.
+
+### Numerical results
+The report draws only on `RESULTS.md` §§1–7. No new experiments.
+
+### Known limitations
+Collected in §11 of the paper: model assumptions, no dual/upper Monte Carlo
+bound, `O(n_paths × n_dates)` memory, uniform grid in `S`, single-threaded
+single-machine timings, and the fact that the one-dimensional setting makes
+Monte Carlo's real advantage — dimension — invisible.
+
+### Unresolved
+- None.
