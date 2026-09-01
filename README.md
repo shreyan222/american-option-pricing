@@ -8,7 +8,7 @@ cross-check.
 Every algorithm here is implemented from scratch. No option-pricing library is
 used, and every number in this README comes from an experiment in this repository.
 
-> **Status:** Milestone 4 of 8 complete. See [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+> **Status:** Milestone 5 of 8 complete. See [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ## Setup
 
@@ -25,6 +25,7 @@ python experiments/m1_european_baseline.py
 python experiments/m2_analytic_anchors.py
 python experiments/m3_crank_nicolson.py    # ~4 min
 python experiments/m4_longstaff_schwartz.py # ~2 min
+python experiments/m5_variance_reduction.py # ~2 min
 ```
 
 Each script writes CSVs to `results/` and figures to `figures/`, and prints a
@@ -76,6 +77,29 @@ estimate is **9.0% above** the true Bermudan value — higher even than the
 American value it is trying to approximate:
 
 ![In-sample vs out-of-sample](figures/m4_in_vs_out_of_sample.png)
+
+### Variance reduction: a constant factor, not a better exponent
+
+| method | 95% CI width | variance reduction | paths for the naive method's accuracy |
+|---|---|---|---|
+| naive | `0.06283` | `1.00` | `200,000` |
+| antithetic | `0.03744` | `2.82` | `71,022` |
+| control variate | `0.04179` | `2.26` | `88,467` |
+| antithetic + control | `0.03643` | `2.97` | `67,257` |
+
+The control variate's power matches the theoretical `1/(1 − ρ²)` to two decimal
+places in all ten parameter regimes. But the fitted `SE`-vs-paths slope stays at
+`−0.505` for every method: variance reduction moves the intercept, never the
+`O(N^{-1/2})` exponent.
+
+![Variance reduction efficiency](figures/m5_efficiency.png)
+
+Antithetic pairs are dependent, so the standard error must be computed over
+**pair means**. Using the naive path-level formula is wrong in both directions —
+`1.31×` too wide for the (monotone) European put, and `0.84×` too narrow for a
+non-monotone butterfly, whose 95% interval then covers only `90.6%`:
+
+![Coverage](figures/m5_coverage.png)
 
 ## Mathematical background
 

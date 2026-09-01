@@ -2,7 +2,7 @@
 
 Persistent state for this repository. Update after **every** milestone.
 
-**Current position:** Milestone 4 complete. Next: Milestone 5 (variance reduction).
+**Current position:** Milestone 5 complete. Next: Milestone 6 (convergence and computational efficiency).
 
 ---
 
@@ -201,5 +201,56 @@ See `RESULTS.md` §4.
   the test and by redesigning the study as a sweep over paths and basis size.
 
 ### Next
-Milestone 5: `src/amopt/variance_reduction.py` — antithetic variates and a
-European-put control variate.
+Superseded — see Milestone 5 below.
+
+---
+
+## Milestone 5 — Variance reduction ✅
+
+### Completed
+- `src/amopt/variance_reduction.py`: naive, antithetic, European-put control
+  variate, and the combination; pair-aware statistics; `paths_for_target_se`;
+  `naive_path_level_se` retained so the *wrong* statistic can be measured rather
+  than only described.
+- `tests/test_variance_reduction.py` — 19 tests including empirical coverage of
+  the 95% interval for all four methods. Total suite: 215 passing.
+- `experiments/m5_variance_reduction.py` — five result tables, three figures.
+
+### Important decisions
+- **Variance-reduction factors are computed per path, not per sampling unit.**
+  An antithetic unit consumes two paths; the per-unit comparison would report
+  double the true gain.
+- **The work-normalised gain (variance × time) is reported alongside the raw
+  VRF**, since a technique that halves variance and doubles cost gains nothing.
+- **`b` is estimated on the training sample**, which makes the control-variate
+  estimator exactly unbiased at no extra cost. The conventional same-sample
+  choice is implemented too and measured to differ by `< 4 × 10⁻⁴`.
+- **The antithetic error bar is a pair statistic.** Demonstrated in both
+  directions on exact payoffs: conservative for a monotone payoff (98.9%
+  coverage), and genuinely broken for a non-monotone one (90.6% coverage).
+
+### Numerical results
+See `RESULTS.md` §5.
+
+### Known limitations
+- The best combined variance reduction is `2.97×` per path. That is a constant
+  factor; the `O(N^{-1/2})` exponent is unchanged (measured `−0.505`), so it
+  cannot close the gap to a PDE solver at high precision.
+- **Variance reduction converts a variance problem into a bias problem.** Once
+  the interval narrows, coverage of the true value drops (`0.950 → 0.910` for
+  antithetic) because the fixed-policy bias stops being negligible.
+- No dual/upper bound (Andersen–Broadie) is implemented, so the Monte Carlo
+  results remain one-sided.
+
+### Unresolved
+- None. One issue found during Milestone 5: the first "path-level standard
+  error" comparison actually computed `correct_SE / √2` rather than the real
+  naive formula, because the marginal path variance was not retained. Fixed by
+  adding `path_variance` and `pair_correlation` to `VRResult`, which also
+  reversed the reported direction of the error (it over-covers, not under-covers,
+  for this payoff) and motivated the butterfly experiment that demonstrates the
+  dangerous direction.
+
+### Next
+Milestone 6: high-resolution reference solution, full convergence and
+error-vs-runtime study across both methods.

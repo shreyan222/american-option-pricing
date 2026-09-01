@@ -327,3 +327,137 @@ already there at degree 3 — and Chebyshev if a high degree is unavoidable.
 
 Figures: `figures/m4_bias_decomposition.png`,
 `figures/m4_in_vs_out_of_sample.png`, `figures/m4_basis_study.png`.
+
+---
+
+## 5. Variance reduction
+
+Source: `experiments/m5_variance_reduction.py` → `results/m5_*.csv`.
+All four estimators price the same object — the 50-date Bermudan put, exact value
+`6.078622` — under a policy fitted on an independent training sample, so
+differences in interval width are attributable to the technique alone.
+
+### 5.1 Headline comparison, 200,000 valuation paths
+
+| method | price | SE | 95% CI width | variance per path | VRF | work-normalised gain | paths for the naive SE |
+|---|---|---|---|---|---|---|---|
+| naive | `6.08868` | `0.016028` | `0.06283` | `51.3772` | `1.00` | `1.00` | `200,000` |
+| antithetic | `6.08613` | `0.009551` | `0.03744` | `18.2447` | `2.82` | **`3.32`** | `71,022` |
+| control variate | `6.09755` | `0.010660` | `0.04179` | `22.7259` | `2.26` | `2.22` | `88,467` |
+| antithetic + control | `6.08255` | `0.009294` | `0.03643` | `17.2774` | **`2.97`** | `3.01` | `67,257` |
+
+The variance-reduction factor is computed **per path**, not per sampling unit —
+an antithetic unit consumes two paths, and comparing per unit would double-count
+the gain. The work-normalised gain multiplies by the runtime ratio; antithetic
+sampling scores above its raw VRF because it draws half as many normals.
+
+**Antithetic sampling reaches the naive method's accuracy on 71,022 paths
+instead of 200,000 — a 2.8× reduction in simulation budget.** Combining both
+techniques reaches it on 67,257.
+
+### 5.2 The control variate's power is exactly `1/(1 − ρ²)`
+
+`results/m5_regimes.csv`. Measured VRF against the theoretical value across all
+ten regimes, 100,000 paths each:
+
+| regime | `ρ` | VRF measured | `1/(1−ρ²)` | antithetic VRF |
+|---|---|---|---|---|
+| base | `0.7481` | `2.27` | `2.27` | `2.81` |
+| itm | `0.4628` | `1.27` | `1.27` | `1.47` |
+| otm | `0.8279` | `3.18` | `3.18` | `1.25` |
+| low_vol | `0.6199` | `1.62` | `1.62` | `2.15` |
+| high_vol | `0.8275` | `3.17` | `3.17` | `4.42` |
+| short_maturity | `0.8058` | `2.85` | `2.85` | `2.73` |
+| long_maturity | `0.6665` | `1.80` | `1.80` | `2.73` |
+| high_rate | `0.6285` | `1.65` | `1.65` | `2.31` |
+| zero_rate | `0.9021` | `5.37` | `5.37` | `3.31` |
+| dividend | `0.8365` | `3.33` | `3.33` | `3.55` |
+
+The measured factor matches theory to two decimal places in **every** regime —
+the dashed curve in `figures/m5_efficiency.png` is theory, not a fit.
+
+The two techniques are complementary rather than redundant, and which one wins
+depends on the regime: out-of-the-money the control variate gives `3.18` and
+antithetic only `1.25`; at high volatility antithetic gives `4.42` against
+`3.17`. `ρ` falls as the early-exercise premium grows (lowest at `itm`, `0.463`,
+where the American cash flow most often stops early and stops depending on `S_T`
+at all), which is exactly when the European control has least to say.
+
+### 5.3 Monte Carlo error is empirically `O(N^{-1/2})`
+
+`results/m5_scaling.csv`, `N` from 5,000 to 400,000. Fitted log–log slopes of the
+standard error against path count:
+
+| method | slope |
+|---|---|
+| naive | `−0.5012` |
+| antithetic | `−0.5062` |
+| control variate | `−0.5047` |
+| antithetic + control | `−0.5051` |
+
+All four are within `0.7%` of the theoretical `−1/2`. Variance reduction moves
+the *intercept*, never the exponent — which is precisely why it cannot rescue
+Monte Carlo from being the wrong tool when high precision is needed (Milestone 6).
+
+### 5.4 Antithetic pairs are dependent, and the standard error must say so
+
+The correct standard error uses **pair means** as the unit of independence. Two
+exact-payoff experiments (3,000 repetitions, 4,000 paths each, no regression, so
+the true value is known independently) show the mistake runs in both directions:
+
+| payoff | monotone in `S_T`? | within-pair `ρ` | naive/correct SE | coverage, pair SE | coverage, path-level SE |
+|---|---|---|---|---|---|
+| European put | yes | `−0.4145` | `1.307` | `0.9510` | `0.9890` |
+| butterfly | no | `+0.4282` | `0.837` | `0.9523` | **`0.9060`** |
+
+- For a payoff **monotone** in the driving noise — the case antithetic sampling
+  is designed for — the pair correlation is negative and the naive path-level
+  formula is `1.31×` too wide. It over-covers at `98.9%`, and in doing so throws
+  away the whole variance reduction.
+- For a **non-monotone** payoff both legs of a pair are small together whenever
+  `|Z|` is large, the pair correlation turns *positive*, and the naive interval
+  is `0.84×` too narrow and covers only **`90.6%`** instead of 95%.
+
+In the LSM antithetic runs the within-pair correlation is `−0.639`, the naive
+path-level SE is `0.0508` against the correct `0.0305`, and its interval covers
+`99.7%` of the time.
+
+### 5.5 Coverage of the LSM intervals
+
+`results/m5_coverage.csv`, 300 repetitions at 20,000 paths:
+
+| method | covers its own mean | covers the exact Bermudan value | bias |
+|---|---|---|---|
+| naive | `0.950` | `0.950` | `−0.00650` |
+| antithetic | `0.943` | `0.910` | `−0.00978` |
+| control variate | `0.933` | `0.927` | `−0.00891` |
+| antithetic + control | `0.940` | `0.923` | `−0.01026` |
+
+Coverage of the estimator's own mean is within the binomial noise band of 95% for
+every method: the standard errors are sound. Coverage of the *true* value is
+lower for the variance-reduced methods — not because their intervals are wrong,
+but because **once the interval narrows, the residual bias of the fixed exercise
+policy stops being negligible relative to it.** Variance reduction converts a
+variance problem into a bias problem; further gains require a better exercise
+policy or a dual upper bound, not more paths.
+
+### 5.6 Where the control coefficient is estimated barely matters
+
+`results/m5_beta_source.csv`. Estimating `b` on the training sample (exactly
+unbiased) versus on the valued sample (the conventional choice, biased at
+`O(1/n)`):
+
+| paths | `b` from training | `b` from sample | deviation, training | deviation, sample |
+|---|---|---|---|---|
+| 2,000 | `0.6216` | `0.6273` | `+0.07369` | `+0.07378` |
+| 10,000 | `0.6216` | `0.6247` | `+0.01498` | `+0.01534` |
+| 50,000 | `0.6216` | `0.6230` | `−0.01872` | `−0.01867` |
+| 200,000 | `0.6216` | `0.6233` | `+0.01075` | `+0.01076` |
+
+The difference is under `4 × 10⁻⁴` even at 2,000 paths — far below the sampling
+error. Using the suboptimal `b = 1` instead of `b* ≈ 0.62` is the choice that
+actually costs: deviation `+0.07968` versus `+0.07369` at 2,000 paths, with a
+materially larger variance.
+
+Figures: `figures/m5_error_vs_paths.png`, `figures/m5_efficiency.png`,
+`figures/m5_coverage.png`.
