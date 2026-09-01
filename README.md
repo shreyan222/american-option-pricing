@@ -31,6 +31,8 @@ python experiments/m4_longstaff_schwartz.py # ~2 min
 python experiments/m5_variance_reduction.py # ~2 min
 python experiments/m6_convergence.py        # ~7 min
 python experiments/m7_exercise_boundary.py  # ~6 min
+
+python experiments/audit_documents.py       # verify every quoted number
 ```
 
 The test suite includes `tests/test_documented_claims.py`, which checks **every
@@ -41,7 +43,7 @@ the documents are updated.
 Each script writes CSVs to `results/` and figures to `figures/`, and prints a
 summary. [`RESULTS.md`](RESULTS.md) records every verified number.
 
-## Current headline numbers
+## Headline numbers
 
 Base contract `S₀ = K = 100, T = 1, r = 5%, σ = 20%, q = 0`:
 
